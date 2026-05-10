@@ -1,0 +1,18 @@
+schema: spec-driven
+
+context: |
+  Project: DA-Pro, the official implementation of "Learning Domain-Aware Detection Head with Prompt Tuning".
+  Codebase: Python research code built on Detectron2/RegionCLIP with PyTorch and CUDA/C++ extensions.
+  Primary modules: detectron2 modeling, ROI heads, CLIP backbones, data/evaluation utilities, shell scripts for training/testing domain adaptation experiments.
+  Tests: pytest-based tests under tests/.
+
+rules:
+  proposal:
+    - Include affected training/testing scripts when a change touches experiment entry points.
+    - Call out dataset, checkpoint, and CLIP/text-embedding assumptions explicitly.
+  specs:
+    - Describe user-visible behavior and experiment workflow changes with Given/When/Then scenarios when practical.
+  design:
+    - Note compatibility risks with Detectron2, PyTorch, CUDA extensions, and existing checkpoints.
+  tasks:
+    - Include focused verification steps, preferring targeted pytest tests or script dry-runs where full training is impractical.

@@ -266,6 +266,7 @@ def register_all_pascal_voc(root):
         ("voc_2012_trainval", "VOC2012", "trainval"),
         ("voc_2012_train", "VOC2012", "train"),
         ("voc_2012_val", "VOC2012", "val"),
+        ("cityscapes_voc_train", "cityscapes_voc/VOC2007", "source_train"),
         ("cityscapes_voc_trainval", "cityscapes_voc/VOC2007", "source_trainval"),
         ("cityscapes_voc_test", "cityscapes_voc/VOC2007", "test"),
         ("foggy_cityscapes_voc_trainval", "foggy_cityscapes_voc/VOC2007", "target_trainval"),

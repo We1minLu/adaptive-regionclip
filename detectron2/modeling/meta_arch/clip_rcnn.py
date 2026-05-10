@@ -56,6 +56,8 @@ class CLIPFastRCNN(nn.Module):
         offline_input_format: Optional[str] = None,
         offline_pixel_mean: Tuple[float],
         offline_pixel_std: Tuple[float],
+        da_pro_enabled: bool = False,
+        da_pro_loss_weight: float = 10.0,
     ):
         """
         Args:
@@ -104,8 +106,11 @@ class CLIPFastRCNN(nn.Module):
         self.clip_crop_region_type = clip_crop_region_type
         self.use_clip_c4 = use_clip_c4 # if True, use C4 mode where roi_head uses the last resnet layer from backbone 
         self.use_clip_attpool = use_clip_attpool # if True (C4+text_emb_as_classifier), use att_pool to replace default mean pool
-        #####################
-        self.Discriminator = DAFeatDiscriminator(1024)
+        self.da_pro_enabled = da_pro_enabled
+        if self.da_pro_enabled:
+            self.Discriminator = DAFeatDiscriminator(1024, loss_weight=da_pro_loss_weight)
+        else:
+            self.Discriminator = None
 
     @classmethod
     def from_config(cls, cfg):
@@ -164,13 +169,21 @@ class CLIPFastRCNN(nn.Module):
             "offline_input_format": offline_cfg.INPUT.FORMAT if offline_cfg else None,
             "offline_pixel_mean": offline_cfg.MODEL.PIXEL_MEAN if offline_cfg else None,
             "offline_pixel_std": offline_cfg.MODEL.PIXEL_STD if offline_cfg else None,
+            "da_pro_enabled": cfg.MODEL.DA_PRO.ENABLED,
+            "da_pro_loss_weight": cfg.MODEL.DA_PRO.LOSS_WEIGHT,
         }
 
     @property
     def device(self):
         return self.pixel_mean.device
 
-    def forward(self, batched_inputs: List[Dict[str, torch.Tensor]], is_source = False):
+    def forward(
+        self,
+        batched_inputs: List[Dict[str, torch.Tensor]],
+        is_source=False,
+        image_level_only=False,
+        return_image_level=False,
+    ):
         """
         Args:
             batched_inputs: a list, batched outputs of :class:`DatasetMapper` .
@@ -193,6 +206,8 @@ class CLIPFastRCNN(nn.Module):
                 The :class:`Instances` object has the following keys:
                 "pred_boxes", "pred_classes", "scores", "pred_masks", "pred_keypoints"
         """
+        if image_level_only:
+            return self.image_level_predictions(batched_inputs, is_source=is_source)
         if not self.training:
             return self.inference(batched_inputs)
         if "instances" in batched_inputs[0]:
@@ -222,20 +237,57 @@ class CLIPFastRCNN(nn.Module):
         images = self.preprocess_image(batched_inputs)
         features = self.backbone(images.tensor)
 
-        loss_dis_0, loss_dis_1 = self.Discriminator.loss(features['res4'])
+        if self.da_pro_enabled:
+            loss_dis_0, loss_dis_1 = self.Discriminator.loss(features['res4'])
 
 
         # Given the proposals, crop region features from 2D image features and classify the regions
         if self.use_clip_c4: # use C4 + resnet weights from CLIP
             if self.use_clip_attpool: # use att_pool from CLIP to match dimension
-                _, detector_losses = self.roi_heads(images, features, proposals, gt_instances, res5=self.backbone.layer4, attnpool=self.backbone.attnpool, is_source=is_source)
+                roi_outputs = self.roi_heads(
+                    images,
+                    features,
+                    proposals,
+                    gt_instances,
+                    res5=self.backbone.layer4,
+                    attnpool=self.backbone.attnpool,
+                    is_source=is_source,
+                    return_logits=return_image_level,
+                )
             else: # use mean pool
-                _, detector_losses = self.roi_heads(images, features, proposals, gt_instances, res5=self.backbone.layer4)
+                roi_outputs = self.roi_heads(
+                    images,
+                    features,
+                    proposals,
+                    gt_instances,
+                    res5=self.backbone.layer4,
+                    is_source=is_source,
+                    return_logits=return_image_level,
+                )
         else:  # regular detector setting
             if self.use_clip_attpool: # use att_pool from CLIP to match dimension
-                _, detector_losses = self.roi_heads(images, features, proposals, gt_instances, attnpool=self.backbone.bottom_up.attnpool)
+                roi_outputs = self.roi_heads(
+                    images,
+                    features,
+                    proposals,
+                    gt_instances,
+                    attnpool=self.backbone.bottom_up.attnpool,
+                    is_source=is_source,
+                    return_logits=return_image_level,
+                )
             else: # use mean pool
-                _, detector_losses = self.roi_heads(images, features, proposals, gt_instances)
+                roi_outputs = self.roi_heads(
+                    images,
+                    features,
+                    proposals,
+                    gt_instances,
+                    is_source=is_source,
+                    return_logits=return_image_level,
+                )
+        if return_image_level:
+            _, detector_losses, roi_logits, objectness = roi_outputs
+        else:
+            _, detector_losses = roi_outputs
         if self.vis_period > 0:
             storage = get_event_storage()
             if storage.iter % self.vis_period == 0:
@@ -244,9 +296,65 @@ class CLIPFastRCNN(nn.Module):
 
         losses = {}
         losses.update(detector_losses)
-        losses.update({'loss_dis_0': loss_dis_0})
-        losses.update({'loss_dis_1': loss_dis_1})
+        if self.da_pro_enabled:
+            losses.update({'loss_dis_0': loss_dis_0})
+            losses.update({'loss_dis_1': loss_dis_1})
+        if return_image_level:
+            image_probs = [
+                self.h2fa_image_level_aggregate(x, o)
+                for x, o in zip(roi_logits, objectness)
+            ]
+            return losses, image_probs
         return losses
+
+    def image_level_predictions(self, batched_inputs: List[Dict[str, torch.Tensor]], is_source=False):
+        with torch.no_grad():
+            if self.clip_crop_region_type == "GT":
+                proposals = []
+                for b_input in batched_inputs:
+                    this_gt = copy.deepcopy(b_input["instances"])
+                    gt_boxes = this_gt._fields['gt_boxes'].to(self.device)
+                    this_gt._fields = {
+                        'proposal_boxes': gt_boxes,
+                        'objectness_logits': torch.ones(gt_boxes.tensor.size(0)).to(self.device),
+                    }
+                    proposals.append(this_gt)
+            elif self.clip_crop_region_type == "RPN":
+                if self.offline_backbone.training or self.offline_proposal_generator.training:
+                    self.offline_backbone.eval()
+                    self.offline_proposal_generator.eval()
+                offline_images = self.offline_preprocess_image(batched_inputs)
+                offline_features = self.offline_backbone(offline_images.tensor)
+                proposals, _ = self.offline_proposal_generator(offline_images, offline_features, None)
+
+        images = self.preprocess_image(batched_inputs)
+        features = self.backbone(images.tensor)
+        if self.use_clip_c4:
+            logits = self.roi_heads.image_level_logits(
+                features, proposals, res5=self.backbone.layer4, attnpool=self.backbone.attnpool, is_source=is_source
+            )
+        elif self.use_clip_attpool:
+            logits = self.roi_heads.image_level_logits(
+                features, proposals, attnpool=self.backbone.bottom_up.attnpool, is_source=is_source
+            )
+        else:
+            logits = self.roi_heads.image_level_logits(features, proposals, is_source=is_source)
+
+        objectness = [p.objectness_logits for p in proposals]
+        return [self.h2fa_image_level_aggregate(x, o) for x, o in zip(logits, objectness)]
+
+    @staticmethod
+    def h2fa_image_level_aggregate(roi_logits: torch.Tensor, objectness_logits: torch.Tensor):
+        class_logits = roi_logits[:, :-1]
+        if class_logits.numel() == 0:
+            return class_logits.new_zeros((class_logits.shape[1],))
+        cls_prob = F.softmax(class_logits, dim=1)
+        pred_cls = class_logits.argmax(dim=1)
+        obj = objectness_logits.to(class_logits.device).float()
+        obj_bar = class_logits.new_zeros(class_logits.shape)
+        obj_bar[torch.arange(class_logits.shape[0], device=class_logits.device), pred_cls] = obj
+        proposal_weights = F.softmax(obj_bar, dim=0)
+        return (cls_prob * proposal_weights).sum(dim=0)
 
     def inference(
         self,
@@ -875,9 +983,10 @@ class GradReverse(Function):
 
 class DAFeatDiscriminator(nn.Module):
 
-    def __init__(self, in_channels):
+    def __init__(self, in_channels, loss_weight=10.0):
         #self.in_channels = in_channels
         self.in_channels = in_channels
+        self.loss_weight = loss_weight
         super(DAFeatDiscriminator, self).__init__()
         self._init_layers()
         self.init_weights()
@@ -939,7 +1048,7 @@ class DAFeatDiscriminator(nn.Module):
     def loss(self, x):
         # feature domain classification loss
         dis_feat = torch.mean(self.extract_dis_feat(x))
-        dis_loss_0 = 10*self.mse(dis_feat, torch.tensor(0).cuda().float())
+        dis_loss_0 = self.loss_weight*self.mse(dis_feat, torch.tensor(0).cuda().float())
         if torch.isnan(dis_loss_0):
             print('dis_loss_0 is nan!')
             print(torch.any(torch.isnan(dis_feat)))
@@ -951,7 +1060,7 @@ class DAFeatDiscriminator(nn.Module):
             #    print(torch.any(torch.isinf(param)))
         if torch.isinf(dis_loss_0):
             print('dis_loss_0 is inf!')
-        dis_loss_1 = 10*self.mse(dis_feat, torch.tensor(1).cuda().float())
+        dis_loss_1 = self.loss_weight*self.mse(dis_feat, torch.tensor(1).cuda().float())
         if torch.isnan(dis_loss_1):
             print('dis_loss_1 is nan!')
             print(torch.any(torch.isnan(dis_feat)))
@@ -959,4 +1068,3 @@ class DAFeatDiscriminator(nn.Module):
         if torch.isinf(dis_loss_1):
             print('dis_loss_1 is inf!')
         return dis_loss_0, dis_loss_1
-

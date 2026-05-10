@@ -7,6 +7,7 @@ import time
 import weakref
 from typing import Dict, List, Optional
 import torch
+import torch.nn.functional as F
 from torch.nn.parallel import DataParallel, DistributedDataParallel
 
 import detectron2.utils.comm as comm
@@ -363,7 +364,7 @@ class DASimpleTrainer(TrainerBase):
     or write your own training loop.
     """
 
-    def __init__(self, model, data_loader_s, data_loader_t, optimizer, is_prompt_tuning):
+    def __init__(self, model, data_loader_s, data_loader_t, optimizer, is_prompt_tuning, cfg=None, teacher_model=None):
         """
         Args:
             model: a torch Module. Takes a data from data_loader and returns a
@@ -388,6 +389,101 @@ class DASimpleTrainer(TrainerBase):
         self._data_loader_iter_t = iter(data_loader_t)
         self.optimizer = optimizer
         self.is_prompt_tuning = is_prompt_tuning
+        self.cfg = cfg
+        self.teacher_model = teacher_model
+        self.use_image_level_ema_kd = bool(cfg is not None and cfg.MODEL.EMA_TEACHER.ENABLED)
+        if self.teacher_model is not None:
+            self.teacher_model.eval()
+
+    def _unwrap_model(self):
+        return self.model.module if isinstance(self.model, DistributedDataParallel) else self.model
+
+    def sync_teacher_with_student(self):
+        if self.teacher_model is None:
+            return
+        self.teacher_model.load_state_dict(self._unwrap_model().state_dict())
+        self.teacher_model.eval()
+        for p in self.teacher_model.parameters():
+            p.requires_grad = False
+
+    def update_teacher_ema(self):
+        if self.teacher_model is None:
+            return
+        decay = self.cfg.MODEL.EMA_TEACHER.DECAY
+        student = self._unwrap_model()
+        student_params = dict(student.named_parameters())
+        student_buffers = dict(student.named_buffers())
+        with torch.no_grad():
+            for name, teacher_param in self.teacher_model.named_parameters():
+                if name.startswith("offline_backbone.") or name.startswith("offline_proposal_generator."):
+                    continue
+                student_param = student_params.get(name)
+                if student_param is not None:
+                    teacher_param.data.mul_(decay).add_(student_param.data, alpha=1.0 - decay)
+            for name, teacher_buffer in self.teacher_model.named_buffers():
+                if name.startswith("offline_backbone.") or name.startswith("offline_proposal_generator."):
+                    continue
+                student_buffer = student_buffers.get(name)
+                if student_buffer is not None:
+                    teacher_buffer.copy_(student_buffer)
+
+    def _strong_augment_batch(self, batched_inputs):
+        if not self.use_image_level_ema_kd:
+            return batched_inputs
+        return [self._strong_augment_input(x) for x in batched_inputs]
+
+    def _strong_augment_input(self, input_dict):
+        output = dict(input_dict)
+        image = input_dict["image"].clone().float()
+        cfg = self.cfg.MODEL.EMA_TEACHER
+        if torch.rand(()) < cfg.COLOR_JITTER_PROB:
+            strength = cfg.COLOR_JITTER_STRENGTH
+            brightness = 1.0 + (torch.rand(()) * 2.0 - 1.0) * strength
+            contrast = 1.0 + (torch.rand(()) * 2.0 - 1.0) * strength
+            saturation = 1.0 + (torch.rand(()) * 2.0 - 1.0) * strength
+            image = image * brightness
+            mean = image.mean(dim=(1, 2), keepdim=True)
+            image = (image - mean) * contrast + mean
+            gray = (0.299 * image[0:1] + 0.587 * image[1:2] + 0.114 * image[2:3])
+            image = (image - gray) * saturation + gray
+        if torch.rand(()) < cfg.GRAYSCALE_PROB:
+            gray = (0.299 * image[0:1] + 0.587 * image[1:2] + 0.114 * image[2:3])
+            image = gray.expand_as(image)
+        if torch.rand(()) < cfg.GAUSSIAN_BLUR_PROB:
+            image = self._gaussian_blur(image)
+        if torch.rand(()) < cfg.CUTOUT_PROB:
+            image = self._cutout(image, cfg.CUTOUT_SCALE)
+        output["image"] = image.clone().clamp_(0.0, 255.0).to(input_dict["image"].dtype)
+        return output
+
+    def _gaussian_blur(self, image, kernel_size=5, sigma=1.0):
+        radius = kernel_size // 2
+        coords = torch.arange(kernel_size, dtype=image.dtype, device=image.device) - radius
+        kernel_1d = torch.exp(-(coords ** 2) / (2 * sigma ** 2))
+        kernel_1d = kernel_1d / kernel_1d.sum()
+        kernel_2d = kernel_1d[:, None] * kernel_1d[None, :]
+        kernel = kernel_2d.expand(image.shape[0], 1, kernel_size, kernel_size)
+        return F.conv2d(image.unsqueeze(0), kernel, padding=radius, groups=image.shape[0]).squeeze(0)
+
+    def _cutout(self, image, scale):
+        image = image.clone()
+        _, h, w = image.shape
+        cut_h = max(1, int(h * scale * float(torch.rand(()))))
+        cut_w = max(1, int(w * scale * float(torch.rand(()))))
+        y0 = int(torch.randint(0, max(1, h - cut_h + 1), (1,)))
+        x0 = int(torch.randint(0, max(1, w - cut_w + 1), (1,)))
+        image[:, y0:y0 + cut_h, x0:x0 + cut_w] = 0
+        return image
+
+    def _image_level_kd_loss(self, student_probs, teacher_probs):
+        losses = []
+        for student_prob, teacher_prob in zip(student_probs, teacher_probs):
+            student_prob = student_prob.clamp(1e-6, 1.0 - 1e-6)
+            teacher_prob = teacher_prob.detach().clamp(0.0, 1.0)
+            losses.append(F.binary_cross_entropy(student_prob, teacher_prob, reduction="mean"))
+        if not losses:
+            return torch.tensor(0.0, device=self._unwrap_model().device)
+        return torch.stack(losses).mean()
 
     def run_step(self):
         """
@@ -415,6 +511,11 @@ class DASimpleTrainer(TrainerBase):
         """
         data_s = next(self._data_loader_iter_s)
         data_t = next(self._data_loader_iter_t)
+        data_t_student = self._strong_augment_batch(data_t)
+        kd_active = (
+            self.use_image_level_ema_kd
+            and self.iter >= self.cfg.MODEL.EMA_TEACHER.WARMUP_ITERS
+        )
         data_time = time.perf_counter() - start
 
         """
@@ -431,10 +532,26 @@ class DASimpleTrainer(TrainerBase):
             #            print('aaaaaaaa')
             
         del loss_dict_s['loss_dis_1']
-        loss_dict_t = self.model(data_t, is_source = False)
+        teacher_probs = None
+        if kd_active:
+            with torch.no_grad():
+                teacher_probs = self.teacher_model(data_t, is_source=False, image_level_only=True)
+        if kd_active:
+            loss_dict_t, student_probs = self.model(
+                data_t_student,
+                is_source=False,
+                return_image_level=True,
+            )
+        else:
+            loss_dict_t = self.model(data_t_student, is_source = False)
         del loss_dict_t['loss_dis_0']
         del loss_dict_t['loss_cls']
         del loss_dict_t['loss_box_reg']
+        if kd_active:
+            loss_dict_t["loss_img_kd"] = (
+                self._image_level_kd_loss(student_probs, teacher_probs)
+                * self.cfg.MODEL.EMA_TEACHER.IMG_KD_WEIGHT
+            )
         if isinstance(loss_dict_s, torch.Tensor):
             # not used, acturally
             losses_s = loss_dict_s
@@ -471,6 +588,8 @@ class DASimpleTrainer(TrainerBase):
             self.update_ema_buffer(self.model, 0.99, self.iter)
 
         self.optimizer.step()
+        if self.use_image_level_ema_kd:
+            self.update_teacher_ema()
         # EMA update
 
     # EMA update
@@ -594,4 +713,3 @@ class AMPTrainer(SimpleTrainer):
     def load_state_dict(self, state_dict):
         super().load_state_dict(state_dict)
         self.grad_scaler.load_state_dict(state_dict["grad_scaler"])
-

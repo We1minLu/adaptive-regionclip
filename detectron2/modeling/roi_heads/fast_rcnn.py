@@ -714,6 +714,19 @@ class FastRCNNOutputLayers(nn.Module):
 
         return {k: v * self.loss_weight.get(k, 1.0) for k, v in losses.items()}
 
+    def predict_logits(self, predictions, proposals: List[Instances], is_source=False):
+        scores, proposal_deltas, da_scores, ema_scores = predictions
+        if self.is_prompt_tuning:
+            scores = da_scores
+        N, D_C = scores.shape
+        C = int(D_C / 2)
+        if is_source:
+            scores = scores[:, :C]
+        else:
+            scores = scores[:, C:]
+        num_inst_per_image = [len(p) for p in proposals]
+        return scores.split(num_inst_per_image, dim=0)
+
     def focal_loss(self, inputs, targets, gamma=0.5, reduction="mean"):
         """Inspired by RetinaNet implementation"""
         if targets.numel() == 0 and reduction == "mean":
@@ -809,8 +822,7 @@ class FastRCNNOutputLayers(nn.Module):
         scores, proposal_deltas, da_scores, ema_scores = predictions
         if self.is_prompt_tuning:
             pseudo_scores = scores
-            scores = da_scores
-            #scores = ema_scores
+            scores = ema_scores
         N, D_C = scores.shape
         C = int(D_C / 2)
         if is_source:
@@ -928,4 +940,3 @@ class FastRCNNOutputLayers(nn.Module):
         num_inst_per_image = [len(p) for p in proposals]
         probs = F.softmax(scores, dim=-1)
         return probs.split(num_inst_per_image, dim=0)
-

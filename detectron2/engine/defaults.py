@@ -772,6 +772,15 @@ class DATrainer(TrainerBase):
 
         # Assume these objects must be constructed in this order.
         model = self.build_model(cfg)
+        teacher_model = self.build_model(cfg) if cfg.MODEL.EMA_TEACHER.ENABLED else None
+        if teacher_model is not None:
+            if hasattr(model, "offline_backbone") and hasattr(teacher_model, "offline_backbone"):
+                teacher_model.offline_backbone = model.offline_backbone
+            if hasattr(model, "offline_proposal_generator") and hasattr(teacher_model, "offline_proposal_generator"):
+                teacher_model.offline_proposal_generator = model.offline_proposal_generator
+            for p in teacher_model.parameters():
+                p.requires_grad = False
+            teacher_model.eval()
         optimizer = self.build_optimizer(cfg, model)
         #data_loader = self.build_train_loader(cfg)
         data_loader_s, data_loader_t = self.build_train_loader(cfg)
@@ -779,7 +788,13 @@ class DATrainer(TrainerBase):
         model = create_ddp_model(model, broadcast_buffers=False)
         # Added pretrain or prompt tuning option to DASimpleTrainer
         self._trainer = (AMPTrainer if cfg.SOLVER.AMP.ENABLED else DASimpleTrainer)(
-            model, data_loader_s, data_loader_t, optimizer, is_prompt_tuning=cfg.LEARNABLE_PROMPT.TUNING
+            model,
+            data_loader_s,
+            data_loader_t,
+            optimizer,
+            is_prompt_tuning=cfg.LEARNABLE_PROMPT.TUNING,
+            cfg=cfg,
+            teacher_model=teacher_model,
         )
 
         self.scheduler = self.build_lr_scheduler(cfg, optimizer)
@@ -821,6 +836,8 @@ class DATrainer(TrainerBase):
             self.second_checkpointer.resume_or_load(
                 self.cfg.MODEL.CLIP.BB_RPN_WEIGHTS, resume=False
             )
+        if hasattr(self._trainer, "sync_teacher_with_student"):
+            self._trainer.sync_teacher_with_student()
         if resume and self.checkpointer.has_checkpoint():
             # The checkpoint stores the training iteration that just finished, thus we start
             # at the next iteration

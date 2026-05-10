@@ -36,7 +36,7 @@ def load_voc_instances(dirname: str, split: str, class_names: Union[List[str], T
     """
     print(os.path.join(dirname, "ImageSets", "Main", split + ".txt"))
     with PathManager.open(os.path.join(dirname, "ImageSets", "Main", split + ".txt")) as f:
-        fileids = np.loadtxt(f, dtype=np.str)
+        fileids = np.loadtxt(f, dtype=str)
 
     # Needs to read many small annotation files. Makes sense at local
     annotation_dirname = PathManager.get_local_path(os.path.join(dirname, "Annotations/"))
@@ -50,20 +50,12 @@ def load_voc_instances(dirname: str, split: str, class_names: Union[List[str], T
 
         with PathManager.open(anno_file) as f:
             tree = ET.parse(f)
-        if 'city' in dirname:
-            r = {
-                "file_name": jpeg_file,
-                "image_id": fileid,
-                "height": int(tree.findall("./size/width")[0].text),
-                "width": int(tree.findall("./size/height")[0].text),
-            }
-        else:
-            r = {
-                "file_name": jpeg_file,
-                "image_id": fileid,
-                "height": int(tree.findall("./size/height")[0].text),
-                "width": int(tree.findall("./size/width")[0].text),
-            }
+        r = {
+            "file_name": jpeg_file,
+            "image_id": fileid,
+            "height": int(tree.findall("./size/height")[0].text),
+            "width": int(tree.findall("./size/width")[0].text),
+        }
         instances = []
 
         for obj in tree.findall("object"):

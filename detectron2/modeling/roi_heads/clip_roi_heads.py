@@ -113,7 +113,17 @@ class CLIPRes5ROIHeads(ROIHeads):
         x = self.pooler(features, boxes)
         return backbone_res5(x)
 
-    def forward(self, images, features, proposals, targets=None, res5=None, attnpool=None, is_source = False):
+    def forward(
+        self,
+        images,
+        features,
+        proposals,
+        targets=None,
+        res5=None,
+        attnpool=None,
+        is_source=False,
+        return_logits=False,
+    ):
         """
         See :meth:`ROIHeads.forward`.
         """
@@ -137,6 +147,10 @@ class CLIPRes5ROIHeads(ROIHeads):
         if self.training:
             del features
             losses = self.box_predictor.losses(predictions, proposals, is_source)
+            logits = None
+            if return_logits:
+                logits = self.box_predictor.predict_logits(predictions, proposals, is_source)
+                objectness_logits = [p.objectness_logits for p in proposals]
             if self.mask_on:
                 proposals, fg_selection_masks = select_foreground_proposals(
                     proposals, self.num_classes
@@ -148,11 +162,24 @@ class CLIPRes5ROIHeads(ROIHeads):
                 mask_features = box_features[torch.cat(fg_selection_masks, dim=0)]
                 del box_features
                 losses.update(self.mask_head(mask_features, proposals))
+            if return_logits:
+                return [], losses, logits, objectness_logits
             return [], losses
         else:
             pred_instances, _ = self.box_predictor.inference(predictions, proposals, is_source)
             pred_instances = self.forward_with_given_boxes(features, pred_instances, res5)
             return pred_instances, {}
+
+    def image_level_logits(self, features, proposals, res5=None, attnpool=None, is_source=False):
+        proposal_boxes = [x.proposal_boxes for x in proposals]
+        box_features = self._shared_roi_transform(
+            [features[f] for f in self.in_features], proposal_boxes, res5
+        )
+        if attnpool:
+            predictions = self.box_predictor(attnpool(box_features))
+        else:
+            predictions = self.box_predictor(box_features.mean(dim=[2, 3]))
+        return self.box_predictor.predict_logits(predictions, proposals, is_source)
 
     def forward_with_given_boxes(self, features, instances, res5=None):
         """

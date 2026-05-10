@@ -142,6 +142,7 @@ class TensorboardXWriter(EventWriter):
             kwargs: other arguments passed to `torch.utils.tensorboard.SummaryWriter(...)`
         """
         self._window_size = window_size
+        import distutils.version  # noqa: F401
         from torch.utils.tensorboard import SummaryWriter
 
         self._writer = SummaryWriter(log_dir, **kwargs)

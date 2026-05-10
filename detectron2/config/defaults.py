@@ -27,6 +27,9 @@ _C.MODEL.MASK_ON = False
 _C.MODEL.KEYPOINT_ON = False
 _C.MODEL.DEVICE = "cuda"
 _C.MODEL.META_ARCHITECTURE = "GeneralizedRCNN"
+_C.MODEL.DA_PRO = CN()
+_C.MODEL.DA_PRO.ENABLED = False
+_C.MODEL.DA_PRO.LOSS_WEIGHT = 10.0
 
 # Path (a file path, or URL like detectron2://.., https://..) to a checkpoint file
 # to be loaded to the model. You can find available models in the model zoo.
@@ -748,6 +751,22 @@ _C.LEARNABLE_PROMPT.CTX_SIZE = 8
 _C.LEARNABLE_PROMPT.TUNING = False
 _C.LEARNABLE_PROMPT.CLASS = ('car',)
 ##########################
+
+##########################
+# Stage2 image-level EMA teacher / KD config
+_C.MODEL.EMA_TEACHER = CN()
+_C.MODEL.EMA_TEACHER.ENABLED = False
+_C.MODEL.EMA_TEACHER.DECAY = 0.999
+_C.MODEL.EMA_TEACHER.WARMUP_ITERS = 1000
+_C.MODEL.EMA_TEACHER.IMG_KD_WEIGHT = 0.2
+_C.MODEL.EMA_TEACHER.COLOR_JITTER_PROB = 0.8
+_C.MODEL.EMA_TEACHER.COLOR_JITTER_STRENGTH = 0.4
+_C.MODEL.EMA_TEACHER.GRAYSCALE_PROB = 0.2
+_C.MODEL.EMA_TEACHER.GAUSSIAN_BLUR_PROB = 0.5
+_C.MODEL.EMA_TEACHER.CUTOUT_PROB = 0.5
+_C.MODEL.EMA_TEACHER.CUTOUT_SCALE = 0.25
+##########################
+
 # global config is for quick hack purposes.
 # You can set them in command line or config files,
 # and access it with:
