@@ -18,6 +18,7 @@ from ..backbone import Backbone, build_backbone
 from ..postprocessing import detector_postprocess
 from ..proposal_generator import build_proposal_generator
 from ..roi_heads import build_roi_heads
+from ..poolers import ROIPooler
 from .build import META_ARCH_REGISTRY
 
 from PIL import Image
@@ -58,6 +59,33 @@ class CLIPFastRCNN(nn.Module):
         offline_pixel_std: Tuple[float],
         da_pro_enabled: bool = False,
         da_pro_loss_weight: float = 10.0,
+        c3_adapter_enabled: bool = False,
+        c3_adapter_hidden_dim: int = 128,
+        c3_adapter_perturb_scale: float = 0.1,
+        c3_adapter_quality_tau: float = 0.5,
+        c3_adapter_quality_logit_temperature: float = 1.0,
+        c3_adapter_scatter_mode: str = "max",
+        c3_adapter_clamp_quality: bool = True,
+        c3_adapter_freeze_backbone: bool = True,
+        c3_adapter_observe_period: int = 20,
+        c3_adapter_apply_residual: bool = True,
+        c4_adapter_apply_residual: bool = False,
+        c5_adapter_apply_residual: bool = False,
+        c3_adapter_residual_scale: float = 1.0,
+        c4_adapter_residual_scale: float = 1.0,
+        c5_adapter_residual_scale: float = 1.0,
+        c3_adapter_supervised_proj_loss_weight: float = 0.0,
+        c3_adapter_supervised_proj_temperature: float = 0.01,
+        c3_adapter_supervised_proj_use_proposals: bool = False,
+        c3_adapter_supervised_proj_feature: str = "res3",
+        c3_adapter_supervised_proj_only: bool = False,
+        c3_adapter_detach_quality_map: bool = False,
+        c3_adapter_freeze_quality_proj: bool = False,
+        c3_adapter_train_adapter_only: bool = False,
+        c3_adapter_pooler_resolution: int = 14,
+        c3_adapter_pooler_sampling_ratio: int = 0,
+        c3_adapter_pooler_type: str = "ROIAlignV2",
+        c3_adapter_text_emb_dim: int = 1024,
     ):
         """
         Args:
@@ -106,11 +134,130 @@ class CLIPFastRCNN(nn.Module):
         self.clip_crop_region_type = clip_crop_region_type
         self.use_clip_c4 = use_clip_c4 # if True, use C4 mode where roi_head uses the last resnet layer from backbone 
         self.use_clip_attpool = use_clip_attpool # if True (C4+text_emb_as_classifier), use att_pool to replace default mean pool
+        self.c3_adapter_enabled = c3_adapter_enabled
+        self.c3_adapter_perturb_scale = c3_adapter_perturb_scale
+        self.c3_adapter_quality_tau = c3_adapter_quality_tau
+        self.c3_adapter_quality_logit_temperature = c3_adapter_quality_logit_temperature
+        self.c3_adapter_scatter_mode = c3_adapter_scatter_mode
+        self.c3_adapter_clamp_quality = c3_adapter_clamp_quality
+        self.c3_adapter_observe_period = c3_adapter_observe_period
+        self.c3_adapter_apply_residual = c3_adapter_apply_residual
+        self.c4_adapter_apply_residual = c4_adapter_apply_residual
+        self.c5_adapter_apply_residual = c5_adapter_apply_residual
+        self.c3_adapter_residual_scale = c3_adapter_residual_scale
+        self.c4_adapter_residual_scale = c4_adapter_residual_scale
+        self.c5_adapter_residual_scale = c5_adapter_residual_scale
+        self.c3_adapter_supervised_proj_loss_weight = c3_adapter_supervised_proj_loss_weight
+        self.c3_adapter_supervised_proj_temperature = c3_adapter_supervised_proj_temperature
+        self.c3_adapter_supervised_proj_use_proposals = c3_adapter_supervised_proj_use_proposals
+        self.c3_adapter_supervised_proj_feature = c3_adapter_supervised_proj_feature
+        self.c3_adapter_detach_quality_map = c3_adapter_detach_quality_map
+        if self.c3_adapter_enabled:
+            if not self.use_clip_c4:
+                raise ValueError("C3 adapter currently supports CLIP C4 backbones only.")
+            if c3_adapter_freeze_backbone:
+                for p in self.backbone.parameters():
+                    p.requires_grad = False
+            c3_channels = 512
+            c4_channels = 1024
+            c5_channels = 2048
+            self.c3_adapter = nn.Sequential(
+                nn.Conv2d(c3_channels, c3_adapter_hidden_dim, kernel_size=1),
+                nn.ReLU(inplace=True),
+                nn.Conv2d(c3_adapter_hidden_dim, c3_channels, kernel_size=1),
+            )
+            self.c4_adapter = nn.Sequential(
+                nn.Conv2d(c4_channels, c3_adapter_hidden_dim, kernel_size=1),
+                nn.ReLU(inplace=True),
+                nn.Conv2d(c3_adapter_hidden_dim, c4_channels, kernel_size=1),
+            )
+            self.c5_adapter = nn.Sequential(
+                nn.Conv2d(c5_channels, c3_adapter_hidden_dim, kernel_size=1),
+                nn.ReLU(inplace=True),
+                nn.Conv2d(c3_adapter_hidden_dim, c5_channels, kernel_size=1),
+            )
+            self.c3_quality_pooler = ROIPooler(
+                output_size=c3_adapter_pooler_resolution,
+                scales=(1.0 / 8.0,),
+                sampling_ratio=c3_adapter_pooler_sampling_ratio,
+                pooler_type=c3_adapter_pooler_type,
+            )
+            self.c3_quality_proj = nn.Linear(c3_channels, c3_adapter_text_emb_dim, bias=False)
+            self.c4_quality_pooler = ROIPooler(
+                output_size=c3_adapter_pooler_resolution,
+                scales=(1.0 / 16.0,),
+                sampling_ratio=c3_adapter_pooler_sampling_ratio,
+                pooler_type=c3_adapter_pooler_type,
+            )
+            self.c4_quality_proj = nn.Linear(c4_channels, c3_adapter_text_emb_dim, bias=False)
+        else:
+            self.c5_adapter_apply_residual = False
+            self.c3_adapter = None
+            self.c4_adapter = None
+            self.c5_adapter = None
+            self.c3_quality_pooler = None
+            self.c3_quality_proj = None
+            self.c4_quality_pooler = None
+            self.c4_quality_proj = None
         self.da_pro_enabled = da_pro_enabled
         if self.da_pro_enabled:
-            self.Discriminator = DAFeatDiscriminator(1024, loss_weight=da_pro_loss_weight)
+            da_in_channels = 512 if self.c3_adapter_enabled else 1024
+            self.Discriminator = DAFeatDiscriminator(da_in_channels, loss_weight=da_pro_loss_weight)
+            self.C4Discriminator = (
+                DAFeatDiscriminator(1024, loss_weight=da_pro_loss_weight)
+                if self.c3_adapter_enabled and self.c4_adapter_apply_residual
+                else None
+            )
+            self.C5Discriminator = (
+                DAFeatDiscriminator(2048, loss_weight=da_pro_loss_weight)
+                if self.c3_adapter_enabled and self.c5_adapter_apply_residual
+                else None
+            )
         else:
             self.Discriminator = None
+            self.C4Discriminator = None
+            self.C5Discriminator = None
+        if c3_adapter_freeze_quality_proj and self.c3_quality_proj is not None:
+            for p in self.c3_quality_proj.parameters():
+                p.requires_grad = False
+            for p in self.c4_quality_proj.parameters():
+                p.requires_grad = False
+        if c3_adapter_train_adapter_only:
+            if not self.c3_adapter_enabled:
+                raise ValueError("TRAIN_ADAPTER_ONLY requires C3_ADAPTER.ENABLED=True.")
+            for p in self.parameters():
+                p.requires_grad = False
+            for p in self.c3_adapter.parameters():
+                p.requires_grad = True
+            for p in self.c4_adapter.parameters():
+                p.requires_grad = True
+            for p in self.c5_adapter.parameters():
+                p.requires_grad = True
+            if self.Discriminator is not None:
+                for p in self.Discriminator.parameters():
+                    p.requires_grad = True
+            if self.C4Discriminator is not None:
+                for p in self.C4Discriminator.parameters():
+                    p.requires_grad = True
+            if self.C5Discriminator is not None:
+                for p in self.C5Discriminator.parameters():
+                    p.requires_grad = True
+        if c3_adapter_supervised_proj_only:
+            if not self.c3_adapter_enabled:
+                raise ValueError("SUPERVISED_PROJ_ONLY requires C3_ADAPTER.ENABLED=True.")
+            for p in self.parameters():
+                p.requires_grad = False
+            supervised_proj = self.c3_quality_proj
+            if self.c3_adapter_supervised_proj_feature == "res4":
+                supervised_proj = self.c4_quality_proj
+            elif self.c3_adapter_supervised_proj_feature != "res3":
+                raise ValueError(
+                    "Unknown C3_ADAPTER.SUPERVISED_PROJ_FEATURE: {}".format(
+                        self.c3_adapter_supervised_proj_feature
+                    )
+                )
+            for p in supervised_proj.parameters():
+                p.requires_grad = True
 
     @classmethod
     def from_config(cls, cfg):
@@ -171,6 +318,33 @@ class CLIPFastRCNN(nn.Module):
             "offline_pixel_std": offline_cfg.MODEL.PIXEL_STD if offline_cfg else None,
             "da_pro_enabled": cfg.MODEL.DA_PRO.ENABLED,
             "da_pro_loss_weight": cfg.MODEL.DA_PRO.LOSS_WEIGHT,
+            "c3_adapter_enabled": cfg.MODEL.C3_ADAPTER.ENABLED,
+            "c3_adapter_hidden_dim": cfg.MODEL.C3_ADAPTER.HIDDEN_DIM,
+            "c3_adapter_perturb_scale": cfg.MODEL.C3_ADAPTER.PERTURB_SCALE,
+            "c3_adapter_quality_tau": cfg.MODEL.C3_ADAPTER.QUALITY_TAU,
+            "c3_adapter_quality_logit_temperature": cfg.MODEL.C3_ADAPTER.QUALITY_LOGIT_TEMPERATURE,
+            "c3_adapter_scatter_mode": cfg.MODEL.C3_ADAPTER.SCATTER_MODE,
+            "c3_adapter_clamp_quality": cfg.MODEL.C3_ADAPTER.CLAMP_QUALITY,
+            "c3_adapter_freeze_backbone": cfg.MODEL.C3_ADAPTER.FREEZE_BACKBONE,
+            "c3_adapter_observe_period": cfg.MODEL.C3_ADAPTER.OBSERVE_PERIOD,
+            "c3_adapter_apply_residual": cfg.MODEL.C3_ADAPTER.APPLY_RESIDUAL,
+            "c4_adapter_apply_residual": cfg.MODEL.C3_ADAPTER.C4_APPLY_RESIDUAL,
+            "c5_adapter_apply_residual": cfg.MODEL.C3_ADAPTER.C5_APPLY_RESIDUAL,
+            "c3_adapter_residual_scale": cfg.MODEL.C3_ADAPTER.RESIDUAL_SCALE,
+            "c4_adapter_residual_scale": cfg.MODEL.C3_ADAPTER.C4_RESIDUAL_SCALE,
+            "c5_adapter_residual_scale": cfg.MODEL.C3_ADAPTER.C5_RESIDUAL_SCALE,
+            "c3_adapter_supervised_proj_loss_weight": cfg.MODEL.C3_ADAPTER.SUPERVISED_PROJ_LOSS_WEIGHT,
+            "c3_adapter_supervised_proj_temperature": cfg.MODEL.C3_ADAPTER.SUPERVISED_PROJ_TEMPERATURE,
+            "c3_adapter_supervised_proj_use_proposals": cfg.MODEL.C3_ADAPTER.SUPERVISED_PROJ_USE_PROPOSALS,
+            "c3_adapter_supervised_proj_feature": cfg.MODEL.C3_ADAPTER.SUPERVISED_PROJ_FEATURE,
+            "c3_adapter_supervised_proj_only": cfg.MODEL.C3_ADAPTER.SUPERVISED_PROJ_ONLY,
+            "c3_adapter_detach_quality_map": cfg.MODEL.C3_ADAPTER.DETACH_QUALITY_MAP,
+            "c3_adapter_freeze_quality_proj": cfg.MODEL.C3_ADAPTER.FREEZE_QUALITY_PROJ,
+            "c3_adapter_train_adapter_only": cfg.MODEL.C3_ADAPTER.TRAIN_ADAPTER_ONLY,
+            "c3_adapter_pooler_resolution": cfg.MODEL.ROI_BOX_HEAD.POOLER_RESOLUTION,
+            "c3_adapter_pooler_sampling_ratio": cfg.MODEL.ROI_BOX_HEAD.POOLER_SAMPLING_RATIO,
+            "c3_adapter_pooler_type": cfg.MODEL.ROI_BOX_HEAD.POOLER_TYPE,
+            "c3_adapter_text_emb_dim": cfg.MODEL.CLIP.TEXT_EMB_DIM,
         }
 
     @property
@@ -235,10 +409,29 @@ class CLIPFastRCNN(nn.Module):
 
         # recognition branch: get 2D feature maps using the backbone of recognition branch
         images = self.preprocess_image(batched_inputs)
-        features = self.backbone(images.tensor)
+        features = self.recognition_features(images, proposals, is_source=is_source)
+        loss_c3_proj = None
+        if (
+            self.c3_adapter_enabled
+            and self.c3_adapter_supervised_proj_loss_weight > 0
+            and gt_instances is not None
+            and (is_source or not self.da_pro_enabled)
+        ):
+            loss_c3_proj = (
+                self.c3_supervised_projection_loss(
+                    features[self.c3_adapter_supervised_proj_feature],
+                    gt_instances,
+                    proposals,
+                    feature_name=self.c3_adapter_supervised_proj_feature,
+                )
+                * self.c3_adapter_supervised_proj_loss_weight
+            )
 
         if self.da_pro_enabled:
-            loss_dis_0, loss_dis_1 = self.Discriminator.loss(features['res4'])
+            da_feature_name = "res3" if self.c3_adapter_enabled else "res4"
+            loss_dis_0, loss_dis_1 = self.Discriminator.loss(features[da_feature_name])
+            if self.C4Discriminator is not None:
+                loss_dis_c4_0, loss_dis_c4_1 = self.C4Discriminator.loss(features["res4"])
 
 
         # Given the proposals, crop region features from 2D image features and classify the regions
@@ -251,6 +444,8 @@ class CLIPFastRCNN(nn.Module):
                     gt_instances,
                     res5=self.backbone.layer4,
                     attnpool=self.backbone.attnpool,
+                    c5_adapter_fn=self.c5_adapter_roi_features if self.c5_adapter_apply_residual else None,
+                    c5_discriminator=self.C5Discriminator,
                     is_source=is_source,
                     return_logits=return_image_level,
                 )
@@ -261,6 +456,8 @@ class CLIPFastRCNN(nn.Module):
                     proposals,
                     gt_instances,
                     res5=self.backbone.layer4,
+                    c5_adapter_fn=self.c5_adapter_roi_features if self.c5_adapter_apply_residual else None,
+                    c5_discriminator=self.C5Discriminator,
                     is_source=is_source,
                     return_logits=return_image_level,
                 )
@@ -296,9 +493,14 @@ class CLIPFastRCNN(nn.Module):
 
         losses = {}
         losses.update(detector_losses)
+        if loss_c3_proj is not None:
+            losses.update({"loss_c3_proj": loss_c3_proj})
         if self.da_pro_enabled:
             losses.update({'loss_dis_0': loss_dis_0})
             losses.update({'loss_dis_1': loss_dis_1})
+            if self.C4Discriminator is not None:
+                losses.update({'loss_dis_c4_0': loss_dis_c4_0})
+                losses.update({'loss_dis_c4_1': loss_dis_c4_1})
         if return_image_level:
             image_probs = [
                 self.h2fa_image_level_aggregate(x, o)
@@ -328,10 +530,15 @@ class CLIPFastRCNN(nn.Module):
                 proposals, _ = self.offline_proposal_generator(offline_images, offline_features, None)
 
         images = self.preprocess_image(batched_inputs)
-        features = self.backbone(images.tensor)
+        features = self.recognition_features(images, proposals, is_source=is_source)
         if self.use_clip_c4:
             logits = self.roi_heads.image_level_logits(
-                features, proposals, res5=self.backbone.layer4, attnpool=self.backbone.attnpool, is_source=is_source
+                features,
+                proposals,
+                res5=self.backbone.layer4,
+                attnpool=self.backbone.attnpool,
+                c5_adapter_fn=self.c5_adapter_roi_features if self.c5_adapter_apply_residual else None,
+                is_source=is_source,
             )
         elif self.use_clip_attpool:
             logits = self.roi_heads.image_level_logits(
@@ -355,6 +562,397 @@ class CLIPFastRCNN(nn.Module):
         obj_bar[torch.arange(class_logits.shape[0], device=class_logits.device), pred_cls] = obj
         proposal_weights = F.softmax(obj_bar, dim=0)
         return (cls_prob * proposal_weights).sum(dim=0)
+
+    def recognition_features(
+        self,
+        images: ImageList,
+        proposals: List[Instances],
+        is_source: bool = False,
+    ) -> Dict[str, torch.Tensor]:
+        if not self.c3_adapter_enabled:
+            return self.backbone(images.tensor)
+
+        x = images.tensor.type(self.backbone.conv1.weight.dtype)
+        x = self.backbone.relu(self.backbone.bn1(self.backbone.conv1(x)))
+        x = self.backbone.relu(self.backbone.bn2(self.backbone.conv2(x)))
+        x = self.backbone.relu(self.backbone.bn3(self.backbone.conv3(x)))
+        x = self.backbone.avgpool(x)
+        x = self.backbone.layer1(x)
+        c3 = self.backbone.layer2(x)
+
+        if self.c3_adapter_apply_residual:
+            quality_map = self.c3_quality_map(c3, proposals, is_source=is_source)
+            if self.c3_adapter_detach_quality_map:
+                quality_map = quality_map.detach()
+            c3 = c3 + self.c3_adapter_residual_scale * quality_map * self.c3_adapter(c3)
+        res4 = self.backbone.layer3(c3)
+        if self.c4_adapter_apply_residual:
+            quality_map = self.c4_quality_map(res4, proposals, is_source=is_source)
+            if self.c3_adapter_detach_quality_map:
+                quality_map = quality_map.detach()
+            res4 = res4 + self.c4_adapter_residual_scale * quality_map * self.c4_adapter(res4)
+        return {"res3": c3, "res4": res4}
+
+    def c3_supervised_projection_loss(
+        self,
+        feature: torch.Tensor,
+        gt_instances: List[Instances],
+        proposals: Optional[List[Instances]] = None,
+        feature_name: str = "res3",
+    ) -> torch.Tensor:
+        if self.c3_adapter_supervised_proj_use_proposals and proposals is not None:
+            with torch.no_grad():
+                training_proposals = self.roi_heads.label_and_sample_proposals(
+                    copy.deepcopy(proposals),
+                    gt_instances,
+                )
+            boxes = [x.proposal_boxes for x in training_proposals]
+            labels = torch.cat([x.gt_classes for x in training_proposals], dim=0)
+        else:
+            boxes = [x.gt_boxes for x in gt_instances]
+            labels = torch.cat([x.gt_classes for x in gt_instances], dim=0)
+
+        num_boxes = sum(len(x) for x in boxes)
+        if num_boxes == 0:
+            return feature.sum() * 0.0
+
+        valid = (labels >= 0) & (labels < self.roi_heads.num_classes)
+        if not valid.any():
+            return feature.sum() * 0.0
+
+        if feature_name == "res3":
+            pooler = self.c3_quality_pooler
+            projector = self.c3_quality_proj
+        elif feature_name == "res4":
+            pooler = self.c4_quality_pooler
+            projector = self.c4_quality_proj
+        else:
+            raise ValueError("Unknown supervised projection feature: {}".format(feature_name))
+
+        roi = pooler([feature], boxes)
+        roi_vec = roi.mean(dim=[2, 3])
+        roi_vec = roi_vec[valid]
+        labels = labels[valid]
+
+        emb = projector(roi_vec)
+        text_weight = self.roi_heads.box_predictor.cls_score.weight[:self.roi_heads.num_classes].detach()
+        logits = F.normalize(emb, dim=1) @ F.normalize(text_weight, dim=1).t()
+        logits = logits / self.c3_adapter_supervised_proj_temperature
+        loss = F.cross_entropy(logits, labels)
+
+        if self.training:
+            with torch.no_grad():
+                storage = get_event_storage()
+                probs = F.softmax(logits, dim=1)
+                entropy = -(probs.clamp_min(1e-12) * probs.clamp_min(1e-12).log()).sum(dim=1)
+                prefix = "c3_adapter/{}_sup_proj".format(feature_name)
+                storage.put_scalar(prefix + "_acc", (logits.argmax(dim=1) == labels).float().mean().item())
+                storage.put_scalar(prefix + "_effective_classes", entropy.exp().mean().item())
+                storage.put_scalar(prefix + "_loss_raw", loss.item())
+        return loss
+
+    def c3_quality_map(
+        self,
+        c3: torch.Tensor,
+        proposals: List[Instances],
+        is_source: bool = False,
+    ) -> torch.Tensor:
+        if len(proposals) == 0:
+            return c3.new_zeros((c3.shape[0], 1, c3.shape[2], c3.shape[3]))
+        boxes = [p.proposal_boxes for p in proposals]
+        eff = self.c3_effective_classes(c3, boxes)
+        aug_boxes = [
+            Boxes(self.jitter_boxes(p.proposal_boxes.tensor, p.image_size, self.c3_adapter_perturb_scale))
+            for p in proposals
+        ]
+        eff_aug = self.c3_effective_classes(c3, aug_boxes)
+        num_classes = self.roi_heads.num_classes
+        certainty = (float(num_classes) - eff) / max(float(num_classes - 1), 1.0)
+        stability = torch.exp(-(eff_aug - eff).abs() / self.c3_adapter_quality_tau)
+        quality = certainty * stability
+        if self.c3_adapter_clamp_quality:
+            quality = quality.clamp(0.0, 1.0)
+
+        quality_maps = self.scatter_region_quality_to_c3(quality, proposals, c3.shape[-2:])
+        self.observe_c3_quality(eff, eff_aug, quality, quality_maps, is_source=is_source)
+        return quality_maps
+
+    def c4_quality_map(
+        self,
+        c4: torch.Tensor,
+        proposals: List[Instances],
+        is_source: bool = False,
+    ) -> torch.Tensor:
+        if len(proposals) == 0:
+            return c4.new_zeros((c4.shape[0], 1, c4.shape[2], c4.shape[3]))
+        boxes = [p.proposal_boxes for p in proposals]
+        eff = self.c4_effective_classes(c4, boxes)
+        aug_boxes = [
+            Boxes(self.jitter_boxes(p.proposal_boxes.tensor, p.image_size, self.c3_adapter_perturb_scale))
+            for p in proposals
+        ]
+        eff_aug = self.c4_effective_classes(c4, aug_boxes)
+        num_classes = self.roi_heads.num_classes
+        certainty = (float(num_classes) - eff) / max(float(num_classes - 1), 1.0)
+        stability = torch.exp(-(eff_aug - eff).abs() / self.c3_adapter_quality_tau)
+        quality = certainty * stability
+        if self.c3_adapter_clamp_quality:
+            quality = quality.clamp(0.0, 1.0)
+
+        quality_maps = self.scatter_region_quality_to_feature(quality, proposals, c4.shape[-2:], stride=16.0)
+        self.observe_quality("c4_adapter", eff, eff_aug, quality, quality_maps, is_source=is_source)
+        return quality_maps
+
+    def c3_effective_classes(self, c3: torch.Tensor, boxes: List[Boxes]) -> torch.Tensor:
+        if sum(len(x) for x in boxes) == 0:
+            return c3.new_zeros((0,))
+        roi = self.c3_quality_pooler([c3], boxes)
+        roi_vec = roi.mean(dim=[2, 3])
+        emb = self.c3_quality_proj(roi_vec)
+        text_weight = self.roi_heads.box_predictor.cls_score.weight[:self.roi_heads.num_classes]
+        logits = F.normalize(emb, dim=1) @ F.normalize(text_weight, dim=1).t()
+        logits = logits / self.c3_adapter_quality_logit_temperature
+        probs = F.softmax(logits, dim=1)
+        entropy = -(probs.clamp_min(1e-12) * probs.clamp_min(1e-12).log()).sum(dim=1)
+        return entropy.exp()
+
+    def c4_effective_classes(self, c4: torch.Tensor, boxes: List[Boxes]) -> torch.Tensor:
+        if sum(len(x) for x in boxes) == 0:
+            return c4.new_zeros((0,))
+        roi = self.c4_quality_pooler([c4], boxes)
+        roi_vec = roi.mean(dim=[2, 3])
+        emb = self.c4_quality_proj(roi_vec)
+        text_weight = self.roi_heads.box_predictor.cls_score.weight[:self.roi_heads.num_classes]
+        logits = F.normalize(emb, dim=1) @ F.normalize(text_weight, dim=1).t()
+        logits = logits / self.c3_adapter_quality_logit_temperature
+        probs = F.softmax(logits, dim=1)
+        entropy = -(probs.clamp_min(1e-12) * probs.clamp_min(1e-12).log()).sum(dim=1)
+        return entropy.exp()
+
+    def c5_adapter_roi_features(
+        self,
+        features: Dict[str, torch.Tensor],
+        proposals: List[Instances],
+        box_features: torch.Tensor,
+        is_source: bool = False,
+    ) -> torch.Tensor:
+        if box_features.numel() == 0:
+            return box_features
+        if self.c3_adapter_detach_quality_map:
+            with torch.no_grad():
+                quality, eff, eff_aug = self.c5_region_quality(features, proposals, box_features)
+            quality = quality.detach()
+        else:
+            quality, eff, eff_aug = self.c5_region_quality(features, proposals, box_features)
+        self.observe_region_quality("c5_adapter", eff, eff_aug, quality, is_source=is_source)
+        quality = quality.reshape(-1, 1, 1, 1).to(dtype=box_features.dtype)
+        return box_features + self.c5_adapter_residual_scale * quality * self.c5_adapter(box_features)
+
+    def c5_region_quality(
+        self,
+        features: Dict[str, torch.Tensor],
+        proposals: List[Instances],
+        box_features: torch.Tensor,
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        proposal_boxes = [x.proposal_boxes for x in proposals]
+        if sum(len(x) for x in proposal_boxes) == 0:
+            empty = box_features.new_zeros((0,))
+            return empty, empty, empty
+        eff = self.c5_effective_classes_from_features(box_features)
+        aug_boxes = [
+            Boxes(
+                self.jitter_boxes(
+                    proposals_per_image.proposal_boxes.tensor,
+                    proposals_per_image.image_size,
+                    self.c3_adapter_perturb_scale,
+                )
+            )
+            for proposals_per_image in proposals
+        ]
+        aug_features = self.roi_heads._shared_roi_transform(
+            [features[f] for f in self.roi_heads.in_features],
+            aug_boxes,
+            self.backbone.layer4,
+        )
+        eff_aug = self.c5_effective_classes_from_features(aug_features)
+        num_classes = self.roi_heads.num_classes
+        certainty = (float(num_classes) - eff) / max(float(num_classes - 1), 1.0)
+        stability = torch.exp(-(eff_aug - eff).abs() / self.c3_adapter_quality_tau)
+        quality = certainty * stability
+        if self.c3_adapter_clamp_quality:
+            quality = quality.clamp(0.0, 1.0)
+        return quality, eff, eff_aug
+
+    def c5_effective_classes_from_features(self, box_features: torch.Tensor) -> torch.Tensor:
+        if box_features.numel() == 0:
+            return box_features.new_zeros((0,))
+        if self.use_clip_attpool:
+            emb = self.backbone.attnpool(box_features)
+        else:
+            emb = box_features.mean(dim=[2, 3])
+        text_weight = self.roi_heads.box_predictor.cls_score.weight[:self.roi_heads.num_classes]
+        if emb.shape[1] != text_weight.shape[1]:
+            raise ValueError(
+                "C5 quality requires ROI embedding dim {} to match text classifier dim {}.".format(
+                    emb.shape[1], text_weight.shape[1]
+                )
+            )
+        logits = F.normalize(emb, dim=1) @ F.normalize(text_weight, dim=1).t()
+        logits = logits / self.c3_adapter_quality_logit_temperature
+        probs = F.softmax(logits, dim=1)
+        entropy = -(probs.clamp_min(1e-12) * probs.clamp_min(1e-12).log()).sum(dim=1)
+        return entropy.exp()
+
+    @staticmethod
+    def jitter_boxes(boxes: torch.Tensor, image_size: Tuple[int, int], scale: float) -> torch.Tensor:
+        if boxes.numel() == 0 or scale <= 0:
+            return boxes.clone()
+        x1, y1, x2, y2 = boxes.unbind(dim=1)
+        w = (x2 - x1).clamp_min(1.0)
+        h = (y2 - y1).clamp_min(1.0)
+        cx = (x1 + x2) * 0.5
+        cy = (y1 + y2) * 0.5
+        dx = (torch.rand_like(cx) * 2.0 - 1.0) * scale * w
+        dy = (torch.rand_like(cy) * 2.0 - 1.0) * scale * h
+        sw = torch.exp((torch.rand_like(w) * 2.0 - 1.0) * scale)
+        sh = torch.exp((torch.rand_like(h) * 2.0 - 1.0) * scale)
+        nw = (w * sw).clamp_min(2.0)
+        nh = (h * sh).clamp_min(2.0)
+        out = torch.stack([cx + dx - 0.5 * nw, cy + dy - 0.5 * nh,
+                           cx + dx + 0.5 * nw, cy + dy + 0.5 * nh], dim=1)
+        height, width = image_size
+        out[:, 0::2].clamp_(0, width)
+        out[:, 1::2].clamp_(0, height)
+        out[:, 2] = torch.maximum(out[:, 2], out[:, 0] + 1.0)
+        out[:, 3] = torch.maximum(out[:, 3], out[:, 1] + 1.0)
+        out[:, 0::2].clamp_(0, width)
+        out[:, 1::2].clamp_(0, height)
+        return out
+
+    def scatter_region_quality_to_c3(
+        self,
+        quality: torch.Tensor,
+        proposals: List[Instances],
+        spatial_size: Tuple[int, int],
+    ) -> torch.Tensor:
+        return self.scatter_region_quality_to_feature(quality, proposals, spatial_size, stride=8.0)
+
+    def scatter_region_quality_to_feature(
+        self,
+        quality: torch.Tensor,
+        proposals: List[Instances],
+        spatial_size: Tuple[int, int],
+        stride: float,
+    ) -> torch.Tensor:
+        h, w = spatial_size
+        quality_maps = []
+        offset = 0
+        mode = self.c3_adapter_scatter_mode
+        for proposals_per_image in proposals:
+            boxes = proposals_per_image.proposal_boxes.tensor
+            qualities = quality[offset: offset + len(proposals_per_image)]
+            offset += len(proposals_per_image)
+            if len(proposals_per_image) == 0:
+                quality_maps.append(quality.new_zeros((1, h, w)))
+                continue
+            if mode == "max":
+                yy, xx = torch.meshgrid(
+                    torch.arange(h, device=quality.device),
+                    torch.arange(w, device=quality.device),
+                )
+                region_maps = []
+                for box, q in zip(boxes, qualities):
+                    x1 = int(torch.floor(box[0] / stride).clamp(0, w - 1).item())
+                    y1 = int(torch.floor(box[1] / stride).clamp(0, h - 1).item())
+                    x2 = int(torch.ceil(box[2] / stride).clamp(x1 + 1, w).item())
+                    y2 = int(torch.ceil(box[3] / stride).clamp(y1 + 1, h).item())
+                    mask = (xx >= x1) & (xx < x2) & (yy >= y1) & (yy < y2)
+                    region_maps.append(torch.where(mask, q.expand(h, w), quality.new_zeros((h, w))))
+                quality_maps.append(torch.stack(region_maps, dim=0).max(dim=0).values.unsqueeze(0))
+            elif mode in ("zero_filled_mean", "zero_filled_mean_max_norm"):
+                sum_map = quality.new_zeros((h, w))
+                count_map = quality.new_zeros((h, w))
+                for box, q in zip(boxes, qualities):
+                    x1 = int(torch.floor(box[0] / stride).clamp(0, w - 1).item())
+                    y1 = int(torch.floor(box[1] / stride).clamp(0, h - 1).item())
+                    x2 = int(torch.ceil(box[2] / stride).clamp(x1 + 1, w).item())
+                    y2 = int(torch.ceil(box[3] / stride).clamp(y1 + 1, h).item())
+                    sum_map[y1:y2, x1:x2] += q
+                    count_map[y1:y2, x1:x2] += 1
+                quality_map = sum_map / count_map.max().clamp_min(1.0)
+                if mode == "zero_filled_mean_max_norm":
+                    quality_map = quality_map / quality_map.max().clamp_min(1e-6)
+                quality_maps.append(quality_map.unsqueeze(0))
+            else:
+                raise ValueError("Unknown C3_ADAPTER.SCATTER_MODE: {}".format(mode))
+        return torch.stack(quality_maps, dim=0)
+
+    def observe_c3_quality(
+        self,
+        eff: torch.Tensor,
+        eff_aug: torch.Tensor,
+        quality: torch.Tensor,
+        quality_maps: torch.Tensor,
+        is_source: bool = False,
+    ):
+        self.observe_quality("c3_adapter", eff, eff_aug, quality, quality_maps, is_source=is_source)
+
+    def observe_quality(
+        self,
+        name: str,
+        eff: torch.Tensor,
+        eff_aug: torch.Tensor,
+        quality: torch.Tensor,
+        quality_maps: torch.Tensor,
+        is_source: bool = False,
+    ):
+        if not self.training or self.c3_adapter_observe_period <= 0:
+            return
+        try:
+            storage = get_event_storage()
+        except AssertionError:
+            return
+        if storage.iter % self.c3_adapter_observe_period != 0:
+            return
+        with torch.no_grad():
+            prefix = "{}/source".format(name) if is_source else "{}/target".format(name)
+            storage.put_scalar(f"{prefix}/effective_classes_mean", eff.mean().item(), smoothing_hint=False)
+            storage.put_scalar(f"{prefix}/effective_classes_aug_mean", eff_aug.mean().item(), smoothing_hint=False)
+            storage.put_scalar(f"{prefix}/effective_classes_delta_mean", (eff_aug - eff).abs().mean().item(), smoothing_hint=False)
+            storage.put_scalar(f"{prefix}/q_mean", quality.mean().item(), smoothing_hint=False)
+            storage.put_scalar(f"{prefix}/q_min", quality.min().item(), smoothing_hint=False)
+            storage.put_scalar(f"{prefix}/q_max", quality.max().item(), smoothing_hint=False)
+            storage.put_scalar(f"{prefix}/q_low_frac", (quality < 0.05).float().mean().item(), smoothing_hint=False)
+            storage.put_scalar(f"{prefix}/q_high_frac", (quality > 0.95).float().mean().item(), smoothing_hint=False)
+            storage.put_scalar(f"{prefix}/Q_mean", quality_maps.mean().item(), smoothing_hint=False)
+            storage.put_scalar(f"{prefix}/Q_max", quality_maps.max().item(), smoothing_hint=False)
+
+    def observe_region_quality(
+        self,
+        name: str,
+        eff: torch.Tensor,
+        eff_aug: torch.Tensor,
+        quality: torch.Tensor,
+        is_source: bool = False,
+    ):
+        if not self.training or self.c3_adapter_observe_period <= 0:
+            return
+        try:
+            storage = get_event_storage()
+        except AssertionError:
+            return
+        if storage.iter % self.c3_adapter_observe_period != 0:
+            return
+        with torch.no_grad():
+            prefix = "{}/source".format(name) if is_source else "{}/target".format(name)
+            storage.put_scalar(f"{prefix}/effective_classes_mean", eff.mean().item(), smoothing_hint=False)
+            storage.put_scalar(f"{prefix}/effective_classes_aug_mean", eff_aug.mean().item(), smoothing_hint=False)
+            storage.put_scalar(f"{prefix}/effective_classes_delta_mean", (eff_aug - eff).abs().mean().item(), smoothing_hint=False)
+            storage.put_scalar(f"{prefix}/q_mean", quality.mean().item(), smoothing_hint=False)
+            storage.put_scalar(f"{prefix}/q_min", quality.min().item(), smoothing_hint=False)
+            storage.put_scalar(f"{prefix}/q_max", quality.max().item(), smoothing_hint=False)
+            storage.put_scalar(f"{prefix}/q_low_frac", (quality < 0.05).float().mean().item(), smoothing_hint=False)
+            storage.put_scalar(f"{prefix}/q_high_frac", (quality > 0.95).float().mean().item(), smoothing_hint=False)
 
     def inference(
         self,
@@ -398,16 +996,31 @@ class CLIPFastRCNN(nn.Module):
     
         # recognition branch: get 2D feature maps using the backbone of recognition branch
         images = self.preprocess_image(batched_inputs)
-        features = self.backbone(images.tensor)
+        features = self.recognition_features(images, proposals)
         #assert not torch.any(torch.isnan(features))
 
 
         # Given the proposals, crop region features from 2D image features and classify the regions
         if self.use_clip_c4: # use C4 + resnet weights from CLIP
             if self.use_clip_attpool: # use att_pool from CLIP to match dimension
-                results, _ = self.roi_heads(images, features, proposals, None, res5=self.backbone.layer4, attnpool=self.backbone.attnpool)
+                results, _ = self.roi_heads(
+                    images,
+                    features,
+                    proposals,
+                    None,
+                    res5=self.backbone.layer4,
+                    attnpool=self.backbone.attnpool,
+                    c5_adapter_fn=self.c5_adapter_roi_features if self.c5_adapter_apply_residual else None,
+                )
             else: # use mean pool
-                results, _ = self.roi_heads(images, features, proposals, None, res5=self.backbone.layer4)
+                results, _ = self.roi_heads(
+                    images,
+                    features,
+                    proposals,
+                    None,
+                    res5=self.backbone.layer4,
+                    c5_adapter_fn=self.c5_adapter_roi_features if self.c5_adapter_apply_residual else None,
+                )
         else:  # regular detector setting
             if self.use_clip_attpool: # use att_pool from CLIP to match dimension
                 results, _  = self.roi_heads(images, features, proposals, None, attnpool=self.backbone.bottom_up.attnpool)

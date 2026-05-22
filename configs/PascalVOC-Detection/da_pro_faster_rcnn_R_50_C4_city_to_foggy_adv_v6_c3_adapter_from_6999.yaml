@@ -1,0 +1,17 @@
+_BASE_: "./da_pro_faster_rcnn_R_50_C4_city_to_foggy_adv_v3.yaml"
+MODEL:
+  WEIGHTS: "./output/c3-proj/cityscapes_c3_proj_sup/model_0006999.pth"
+  C3_ADAPTER:
+    ENABLED: True
+    APPLY_RESIDUAL: True
+    DETACH_QUALITY_MAP: True
+    FREEZE_QUALITY_PROJ: True
+    TRAIN_ADAPTER_ONLY: True
+    SUPERVISED_PROJ_LOSS_WEIGHT: 0.0
+    HIDDEN_DIM: 128
+    PERTURB_SCALE: 0.1
+    QUALITY_TAU: 0.5
+    CLAMP_QUALITY: True
+    FREEZE_BACKBONE: True
+    OBSERVE_PERIOD: 20
+OUTPUT_DIR: "./output/domain-adv-v6/city_to_foggy_adv_v6_c3_adapter_from_6999"

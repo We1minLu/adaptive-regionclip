@@ -1,0 +1,2 @@
+_BASE_: "./da_pro_faster_rcnn_R_50_C4_city_to_foggy_adv_v12_c3_c4_adapter_c4adv_scale5.yaml"
+OUTPUT_DIR: "./output/domain-adv-v13/city_to_foggy_adv_v13_c3_c4_adapter_c4adv_scale5_fixed"

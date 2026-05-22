@@ -532,6 +532,8 @@ class DASimpleTrainer(TrainerBase):
             #            print('aaaaaaaa')
             
         del loss_dict_s['loss_dis_1']
+        loss_dict_s.pop('loss_dis_c4_1', None)
+        loss_dict_s.pop('loss_dis_c5_1', None)
         teacher_probs = None
         if kd_active:
             with torch.no_grad():
@@ -545,6 +547,8 @@ class DASimpleTrainer(TrainerBase):
         else:
             loss_dict_t = self.model(data_t_student, is_source = False)
         del loss_dict_t['loss_dis_0']
+        loss_dict_t.pop('loss_dis_c4_0', None)
+        loss_dict_t.pop('loss_dis_c5_0', None)
         del loss_dict_t['loss_cls']
         del loss_dict_t['loss_box_reg']
         if kd_active:

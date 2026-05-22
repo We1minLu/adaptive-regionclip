@@ -121,6 +121,8 @@ class CLIPRes5ROIHeads(ROIHeads):
         targets=None,
         res5=None,
         attnpool=None,
+        c5_adapter_fn=None,
+        c5_discriminator=None,
         is_source=False,
         return_logits=False,
     ):
@@ -137,6 +139,8 @@ class CLIPRes5ROIHeads(ROIHeads):
         box_features = self._shared_roi_transform(
             [features[f] for f in self.in_features], proposal_boxes, res5
         )
+        if c5_adapter_fn is not None:
+            box_features = c5_adapter_fn(features, proposals, box_features, is_source=is_source)
         if attnpool:  # att pooling
             att_feats = attnpool(box_features)
             #predictions = self.box_predictor(att_feats)
@@ -147,6 +151,13 @@ class CLIPRes5ROIHeads(ROIHeads):
         if self.training:
             del features
             losses = self.box_predictor.losses(predictions, proposals, is_source)
+            if c5_discriminator is not None:
+                c5_dis_feat = torch.nn.functional.adaptive_avg_pool2d(box_features, 1)
+                loss_dis_c5_0, loss_dis_c5_1 = c5_discriminator.loss(c5_dis_feat)
+                losses.update({
+                    "loss_dis_c5_0": loss_dis_c5_0,
+                    "loss_dis_c5_1": loss_dis_c5_1,
+                })
             logits = None
             if return_logits:
                 logits = self.box_predictor.predict_logits(predictions, proposals, is_source)
@@ -170,11 +181,13 @@ class CLIPRes5ROIHeads(ROIHeads):
             pred_instances = self.forward_with_given_boxes(features, pred_instances, res5)
             return pred_instances, {}
 
-    def image_level_logits(self, features, proposals, res5=None, attnpool=None, is_source=False):
+    def image_level_logits(self, features, proposals, res5=None, attnpool=None, c5_adapter_fn=None, is_source=False):
         proposal_boxes = [x.proposal_boxes for x in proposals]
         box_features = self._shared_roi_transform(
             [features[f] for f in self.in_features], proposal_boxes, res5
         )
+        if c5_adapter_fn is not None:
+            box_features = c5_adapter_fn(features, proposals, box_features, is_source=is_source)
         if attnpool:
             predictions = self.box_predictor(attnpool(box_features))
         else:

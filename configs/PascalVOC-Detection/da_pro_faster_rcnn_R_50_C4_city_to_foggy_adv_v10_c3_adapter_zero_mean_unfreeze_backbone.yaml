@@ -1,0 +1,6 @@
+_BASE_: "./da_pro_faster_rcnn_R_50_C4_city_to_foggy_adv_v9_c3_adapter_zero_mean.yaml"
+MODEL:
+  C3_ADAPTER:
+    FREEZE_BACKBONE: False
+    TRAIN_ADAPTER_ONLY: False
+OUTPUT_DIR: "./output/domain-adv-v10/city_to_foggy_adv_v10_c3_adapter_zero_mean_unfreeze_backbone"

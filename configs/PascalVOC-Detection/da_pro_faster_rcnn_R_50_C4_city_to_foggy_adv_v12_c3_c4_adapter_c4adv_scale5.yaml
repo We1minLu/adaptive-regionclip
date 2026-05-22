@@ -1,0 +1,2 @@
+_BASE_: "./da_pro_faster_rcnn_R_50_C4_city_to_foggy_adv_v11_c3_c4_adapter_zero_mean_unfreeze_backbone.yaml"
+OUTPUT_DIR: "./output/domain-adv-v12/city_to_foggy_adv_v12_c3_c4_adapter_c4adv_scale5"

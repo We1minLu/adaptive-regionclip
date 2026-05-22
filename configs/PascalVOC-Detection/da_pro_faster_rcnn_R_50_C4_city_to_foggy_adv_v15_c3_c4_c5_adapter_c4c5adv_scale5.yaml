@@ -1,0 +1,4 @@
+_BASE_: "./da_pro_faster_rcnn_R_50_C4_city_to_foggy_adv_v14_c3_c4_c5_adapter_c4adv_scale5.yaml"
+MODEL:
+  WEIGHTS: "./output/domain-adv-v14/city_to_foggy_adv_v14_c3_c4_c5_adapter_c4adv_scale5/model_0021999.pth"
+OUTPUT_DIR: "./output/domain-adv-v15/city_to_foggy_adv_v15_c3_c4_c5_adapter_c4c5adv_scale5"

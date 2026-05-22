@@ -1,0 +1,17 @@
+_BASE_: "./da_pro_faster_rcnn_R_50_C4_city_to_foggy_adv_v10_c3_adapter_zero_mean_unfreeze_backbone.yaml"
+MODEL:
+  WEIGHTS: "./output/init/source_c3_0006999_c4_0008999_for_dual_adapter.pth"
+  C3_ADAPTER:
+    APPLY_RESIDUAL: True
+    C4_APPLY_RESIDUAL: True
+    RESIDUAL_SCALE: 5.0
+    C4_RESIDUAL_SCALE: 5.0
+    SCATTER_MODE: "zero_filled_mean"
+    QUALITY_LOGIT_TEMPERATURE: 0.01
+    DETACH_QUALITY_MAP: True
+    FREEZE_QUALITY_PROJ: True
+    FREEZE_BACKBONE: False
+    TRAIN_ADAPTER_ONLY: False
+TEST:
+  EVAL_PERIOD: 500
+OUTPUT_DIR: "./output/domain-adv-v11/city_to_foggy_adv_v11_c3_c4_adapter_zero_mean_unfreeze_backbone"

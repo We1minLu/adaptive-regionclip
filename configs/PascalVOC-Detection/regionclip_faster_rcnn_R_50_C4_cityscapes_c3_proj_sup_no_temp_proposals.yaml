@@ -1,0 +1,18 @@
+_BASE_: "./regionclip_faster_rcnn_R_50_C4_cityscapes_train_only.yaml"
+MODEL:
+  WEIGHTS: "./output/source-only/regionclip_cityscapes_train_only_100k/model_best.pth"
+  C3_ADAPTER:
+    ENABLED: True
+    APPLY_RESIDUAL: False
+    SUPERVISED_PROJ_LOSS_WEIGHT: 1.0
+    SUPERVISED_PROJ_TEMPERATURE: 1.0
+    SUPERVISED_PROJ_USE_PROPOSALS: True
+    SUPERVISED_PROJ_ONLY: True
+    FREEZE_BACKBONE: True
+    OBSERVE_PERIOD: 20
+SOLVER:
+  MAX_ITER: 10000
+  CHECKPOINT_PERIOD: 1000
+TEST:
+  EVAL_PERIOD: 500
+OUTPUT_DIR: "./output/c3-proj/cityscapes_c3_proj_sup_no_temp_proposals"
