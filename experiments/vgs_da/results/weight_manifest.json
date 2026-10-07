@@ -1,0 +1,84 @@
+{
+  "milestone": "VGS+DA mixedAP50 55.975298 @25000",
+  "best_step": 25000,
+  "weights": [
+    {
+      "file": "model_best_ap5598.pth",
+      "original": "/root/autodl-tmp/formal_vgs_da_20261004/run/model_final.pth",
+      "bytes": 155164901,
+      "sha256": "4da3f1a177e6ab77693423b81d1be998dd59eb29273f3deb995e8ea09bd7b9e0"
+    },
+    {
+      "file": "checkpoint_resume_025000.pth",
+      "original": "/root/autodl-tmp/formal_vgs_da_20261004/run/checkpoint_last.pth",
+      "bytes": 310454583,
+      "sha256": "a31a8bf67d9c371eb7cf26f59f30cbbea2daaa5f3b2d83a9fff43c0dcf912448"
+    }
+  ],
+  "notes": "Independent retained copies; full model also requires original fixed SourceB/RPN/text/VGS initialization assets identified in initialization_audit.json.",
+  "archived_fixed_assets": [
+    {
+      "name": "source_cfg",
+      "original": "/root/regionclip/DA-Pro/migration_records/20260930_sourceB_advV3/source_B/config.yaml",
+      "archived": "/root/autodl-tmp/checkpoints/vgs_da_ap5598_25k/fixed_assets/source_cfg.yaml",
+      "bytes": 8183,
+      "sha256": "a4b7580f000e3040749648da1acd339bd5d6a74e6dbdd456fe1e333ec207d979",
+      "method": "copy"
+    },
+    {
+      "name": "source_checkpoint",
+      "original": "/root/regionclip/DA-Pro/output/source-only/regionclip_cityscapes_train_only_100k/model_best.pth",
+      "archived": "/root/autodl-tmp/checkpoints/vgs_da_ap5598_25k/fixed_assets/source_checkpoint.pth",
+      "bytes": 483019054,
+      "sha256": "f199ea87709207a0b2ee23dd63dd49d4d3b540c8e9eb9c213d00f3e449a5e861",
+      "method": "copy"
+    },
+    {
+      "name": "rpn_checkpoint",
+      "original": "/root/regionclip/DA-Pro/pretrained_ckpt/rpn/rpn_coco_48.pth",
+      "archived": "/root/autodl-tmp/checkpoints/vgs_da_ap5598_25k/fixed_assets/rpn_checkpoint.pth",
+      "bytes": 72439156,
+      "sha256": "8b934109caae409fbf62753d1f167ea1411b75aa0b30c60f5c289aa90ada42ca",
+      "method": "copy"
+    },
+    {
+      "name": "text_embeddings",
+      "original": "/root/regionclip/DA-Pro/pretrained_ckpt/concept_emb/cityscapes_8_cls_emb.pth",
+      "archived": "/root/autodl-tmp/checkpoints/vgs_da_ap5598_25k/fixed_assets/text_embeddings.pth",
+      "bytes": 34013,
+      "sha256": "c25e3d4b8c8271213929d0fe88cfe7f3e934b5ba81e9a34af3521756e74827ae",
+      "method": "copy"
+    },
+    {
+      "name": "source_search_checkpoint",
+      "original": "/root/regionclip/DA-Pro/output/learned_semantic_search_20261003/seed_20261003/vgs/best.pt",
+      "archived": "/root/autodl-tmp/checkpoints/vgs_da_ap5598_25k/fixed_assets/source_search_checkpoint.pt",
+      "bytes": 2294565,
+      "sha256": "329983382c01867dec64ee75fe75f5631b330a289b6e36c487131a435b2f2d4e",
+      "method": "copy"
+    }
+  ],
+  "retention": "KEEP: milestone AP55.975298 weights, resume checkpoint and fixed dependencies; do not classify as disposable intermediate weights.",
+  "fixed_sources": {
+    "source_cfg": {
+      "path": "/root/regionclip/DA-Pro/migration_records/20260930_sourceB_advV3/source_B/config.yaml",
+      "sha256": "a4b7580f000e3040749648da1acd339bd5d6a74e6dbdd456fe1e333ec207d979"
+    },
+    "source_checkpoint": {
+      "path": "/root/regionclip/DA-Pro/output/source-only/regionclip_cityscapes_train_only_100k/model_best.pth",
+      "sha256": "f199ea87709207a0b2ee23dd63dd49d4d3b540c8e9eb9c213d00f3e449a5e861"
+    },
+    "rpn_checkpoint": {
+      "path": "/root/regionclip/DA-Pro/pretrained_ckpt/rpn/rpn_coco_48.pth",
+      "sha256": "8b934109caae409fbf62753d1f167ea1411b75aa0b30c60f5c289aa90ada42ca"
+    },
+    "text_embeddings": {
+      "path": "/root/regionclip/DA-Pro/pretrained_ckpt/concept_emb/cityscapes_8_cls_emb.pth",
+      "sha256": "c25e3d4b8c8271213929d0fe88cfe7f3e934b5ba81e9a34af3521756e74827ae"
+    },
+    "source_search_checkpoint": {
+      "path": "/root/regionclip/DA-Pro/output/learned_semantic_search_20261003/seed_20261003/vgs/best.pt",
+      "sha256": "329983382c01867dec64ee75fe75f5631b330a289b6e36c487131a435b2f2d4e"
+    }
+  }
+}

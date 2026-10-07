@@ -65,3 +65,11 @@ _darcs
 /projects/*/datasets
 /models
 /snippet
+
+# VGS+DA code, compact experiment evidence and large local runtime assets.
+!/experiments/vgs_da/configs/*.json
+!/experiments/vgs_da/results/*.json
+*.pt
+*.ckpt
+/runs/
+/checkpoints/

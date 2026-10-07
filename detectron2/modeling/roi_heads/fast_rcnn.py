@@ -403,6 +403,7 @@ class FastRCNNOutputLayers(nn.Module):
         ctx_size: int = 8,
         prompt_class: tuple = (None),
         is_prompt_tuning: bool = False,
+        region_loss_weight_norm: str = "sum_weights",
     ):
         """
         NOTE: this interface is experimental.
@@ -509,6 +510,9 @@ class FastRCNNOutputLayers(nn.Module):
             self.cls_loss_weight = torch.ones(num_classes + 1)
             self.cls_loss_weight[-1] = bg_cls_loss_weight
         self.focal_scaled_loss = openset_test[3]  # focal scaling
+        if region_loss_weight_norm not in ("sum_weights", "num_regions"):
+            raise ValueError("region_loss_weight_norm must be 'sum_weights' or 'num_regions'.")
+        self.region_loss_weight_norm = region_loss_weight_norm
         # inference options
         self.no_box_delta = no_box_delta  # box delta after regression
         self.multiply_rpn_score = multiply_rpn_score[0]
@@ -543,7 +547,8 @@ class FastRCNNOutputLayers(nn.Module):
                                        cfg.MODEL.CLIP.CLSS_TEMP, cfg.MODEL.CLIP.FOCAL_SCALED_LOSS),
             "ctx_size"              : cfg.LEARNABLE_PROMPT.CTX_SIZE,
             "prompt_class"          : cfg.LEARNABLE_PROMPT.CLASS,
-            "is_prompt_tuning"      : cfg.LEARNABLE_PROMPT.TUNING
+            "is_prompt_tuning"      : cfg.LEARNABLE_PROMPT.TUNING,
+            "region_loss_weight_norm": cfg.MODEL.C3_ADAPTER.REGION_LOSS_WEIGHT_NORM,
             # fmt: on
         }
 
@@ -620,6 +625,8 @@ class FastRCNNOutputLayers(nn.Module):
         # regular classifier
         else:  
             scores = self.cls_score(x)
+            da_scores = scores
+            ema_scores = scores
         
         # box regression
         proposal_deltas = self.bbox_pred(x)
@@ -638,6 +645,30 @@ class FastRCNNOutputLayers(nn.Module):
         """
         # scores: [*, domains * (cls + 1)]
         scores, proposal_deltas, da_scores, ema_scores = predictions
+        if not self.use_clip_cls_emb and not getattr(self, "is_prompt_tuning", False):
+            gt_classes = (
+                cat([p.gt_classes for p in proposals], dim=0) if len(proposals) else torch.empty(0)
+            )
+            _log_classification_stats(scores, gt_classes)
+            if len(proposals):
+                proposal_boxes = cat([p.proposal_boxes.tensor for p in proposals], dim=0)
+                assert not proposal_boxes.requires_grad, "Proposals should not require gradients!"
+                gt_boxes = cat(
+                    [(p.gt_boxes if p.has("gt_boxes") else p.proposal_boxes).tensor for p in proposals],
+                    dim=0,
+                )
+            else:
+                proposal_boxes = gt_boxes = torch.empty((0, 4), device=proposal_deltas.device)
+            region_weights = self.region_loss_weights(proposals, scores.device)
+            losses = {
+                "loss_cls": self.weighted_classification_loss(scores, gt_classes, region_weights),
+                "loss_box_reg": self.box_reg_loss_weighted(
+                    proposal_boxes, gt_boxes, proposal_deltas, gt_classes, region_weights
+                )
+                if region_weights is not None
+                else self.box_reg_loss(proposal_boxes, gt_boxes, proposal_deltas, gt_classes),
+            }
+            return {k: v * self.loss_weight.get(k, 1.0) for k, v in losses.items()}
         if self.is_prompt_tuning:
             # if prompt tuning, use origin scores as pseudo labels, and use da_scores as logits
             pseudo_scores = scores
@@ -677,16 +708,15 @@ class FastRCNNOutputLayers(nn.Module):
         # loss weights
         if self.cls_loss_weight is not None and self.cls_loss_weight.device != scores.device:
             self.cls_loss_weight = self.cls_loss_weight.to(scores.device)
-        if self.focal_scaled_loss is not None:
-            loss_cls = self.focal_loss(scores, gt_classes, gamma=self.focal_scaled_loss)
-        else:    
-            loss_cls = cross_entropy(scores, gt_classes, reduction="mean") if self.cls_loss_weight is None else \
-                       cross_entropy(scores, gt_classes, reduction="mean", weight=self.cls_loss_weight)
+        region_weights = self.region_loss_weights(proposals, scores.device)
+        loss_cls = self.weighted_classification_loss(scores, gt_classes, region_weights)
         losses = {
             "loss_cls": loss_cls,
-            "loss_box_reg": self.box_reg_loss(
-                proposal_boxes, gt_boxes, proposal_deltas, gt_classes
-            ),
+            "loss_box_reg": self.box_reg_loss_weighted(
+                proposal_boxes, gt_boxes, proposal_deltas, gt_classes, region_weights
+            )
+            if region_weights is not None
+            else self.box_reg_loss(proposal_boxes, gt_boxes, proposal_deltas, gt_classes),
         }
         #############################################
         if self.is_prompt_tuning:
@@ -713,6 +743,76 @@ class FastRCNNOutputLayers(nn.Module):
         ########################################
 
         return {k: v * self.loss_weight.get(k, 1.0) for k, v in losses.items()}
+
+    def region_loss_weights(self, proposals, device):
+        if not proposals or not all(p.has("region_quality") for p in proposals):
+            return None
+        weights = cat([p.region_quality for p in proposals], dim=0).to(device=device, dtype=torch.float32)
+        if weights.numel() == 0:
+            return weights
+        weights = weights.clamp_min(0.0)
+        if self.training:
+            try:
+                storage = get_event_storage()
+                storage.put_scalar("region_loss_quality/weight_mean", weights.mean().item(), smoothing_hint=False)
+                storage.put_scalar("region_loss_quality/weight_min", weights.min().item(), smoothing_hint=False)
+                storage.put_scalar("region_loss_quality/weight_max", weights.max().item(), smoothing_hint=False)
+            except AssertionError:
+                pass
+        return weights
+
+    def weighted_classification_loss(self, scores, gt_classes, region_weights=None):
+        if region_weights is None:
+            if self.focal_scaled_loss is not None:
+                return self.focal_loss(scores, gt_classes, gamma=self.focal_scaled_loss)
+            return cross_entropy(scores, gt_classes, reduction="mean") if self.cls_loss_weight is None else \
+                cross_entropy(scores, gt_classes, reduction="mean", weight=self.cls_loss_weight)
+        if gt_classes.numel() == 0:
+            return scores.sum() * 0.0
+        if self.focal_scaled_loss is not None:
+            loss = self.focal_loss(scores, gt_classes, gamma=self.focal_scaled_loss, reduction="none")
+        else:
+            loss = F.cross_entropy(scores, gt_classes, reduction="none", weight=self.cls_loss_weight)
+        weights = region_weights.to(dtype=loss.dtype)
+        if self.region_loss_weight_norm == "num_regions":
+            normalizer = torch.tensor(float(max(gt_classes.numel(), 1)), device=loss.device, dtype=loss.dtype)
+        else:
+            normalizer = weights.sum().clamp_min(1.0)
+        return (loss * weights).sum() / normalizer
+
+    def box_reg_loss_weighted(self, proposal_boxes, gt_boxes, pred_deltas, gt_classes, region_weights):
+        box_dim = proposal_boxes.shape[1]
+        fg_inds = nonzero_tuple((gt_classes >= 0) & (gt_classes < self.num_classes))[0]
+        if fg_inds.numel() == 0:
+            return pred_deltas.sum() * 0.0
+        if pred_deltas.shape[1] == box_dim:
+            fg_pred_deltas = pred_deltas[fg_inds]
+        else:
+            fg_pred_deltas = pred_deltas.view(-1, self.num_classes, box_dim)[
+                fg_inds, gt_classes[fg_inds]
+            ]
+
+        if self.box_reg_loss_type == "smooth_l1":
+            gt_pred_deltas = self.box2box_transform.get_deltas(
+                proposal_boxes[fg_inds],
+                gt_boxes[fg_inds],
+            )
+            loss_box_reg = smooth_l1_loss(
+                fg_pred_deltas, gt_pred_deltas, self.smooth_l1_beta, reduction="none"
+            ).sum(dim=1)
+        elif self.box_reg_loss_type == "giou":
+            fg_pred_boxes = self.box2box_transform.apply_deltas(
+                fg_pred_deltas, proposal_boxes[fg_inds]
+            )
+            loss_box_reg = giou_loss(fg_pred_boxes, gt_boxes[fg_inds], reduction="none")
+        else:
+            raise ValueError(f"Invalid bbox reg loss type '{self.box_reg_loss_type}'")
+        weights = region_weights[fg_inds].to(dtype=loss_box_reg.dtype)
+        if self.region_loss_weight_norm == "num_regions":
+            normalizer = torch.tensor(float(max(gt_classes.numel(), 1)), device=loss_box_reg.device, dtype=loss_box_reg.dtype)
+        else:
+            normalizer = region_weights.to(dtype=loss_box_reg.dtype).sum().clamp_min(1.0)
+        return (loss_box_reg * weights).sum() / normalizer
 
     def predict_logits(self, predictions, proposals: List[Instances], is_source=False):
         scores, proposal_deltas, da_scores, ema_scores = predictions
@@ -820,6 +920,29 @@ class FastRCNNOutputLayers(nn.Module):
         ### scores: [*, domains * (cls + 1)]
         #scores, proposal_deltas = predictions
         scores, proposal_deltas, da_scores, ema_scores = predictions
+        if not self.use_clip_cls_emb and not getattr(self, "is_prompt_tuning", False):
+            predictions = (scores, proposal_deltas)
+            boxes = self.predict_boxes(predictions, proposals)
+            scores = self.predict_probs(predictions, proposals)
+            image_shapes = [x.image_size for x in proposals]
+            scores_bf_multiply = scores
+            if self.multiply_rpn_score and not self.training:
+                rpn_scores = [p.get('objectness_logits') for p in proposals]
+                scores = [(s * rpn_s[:, None]) ** 0.5 for s, rpn_s in zip(scores, rpn_scores)]
+            return fast_rcnn_inference(
+                boxes,
+                scores,
+                image_shapes,
+                self.test_score_thresh,
+                self.test_nms_thresh,
+                self.soft_nms_enabled,
+                self.soft_nms_method,
+                self.soft_nms_sigma,
+                self.soft_nms_prune,
+                self.test_topk_per_image,
+                scores_bf_multiply=scores_bf_multiply,
+                vis=True if self.vis else False,
+            )
         if self.is_prompt_tuning:
             pseudo_scores = scores
             scores = ema_scores

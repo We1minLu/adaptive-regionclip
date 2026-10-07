@@ -1,0 +1,4 @@
+
+# Preserve the exact recorded source configuration hash on all platforms.
+experiments/vgs_da/configs/source_B.yaml -text
+experiments/vgs_da/*.py text eol=lf

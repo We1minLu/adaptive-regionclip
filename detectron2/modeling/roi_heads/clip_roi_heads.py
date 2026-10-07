@@ -122,7 +122,9 @@ class CLIPRes5ROIHeads(ROIHeads):
         res5=None,
         attnpool=None,
         c5_adapter_fn=None,
+        region_loss_quality_fn=None,
         c5_discriminator=None,
+        region_reshaper_fn=None,
         is_source=False,
         return_logits=False,
     ):
@@ -139,20 +141,38 @@ class CLIPRes5ROIHeads(ROIHeads):
         box_features = self._shared_roi_transform(
             [features[f] for f in self.in_features], proposal_boxes, res5
         )
+        c5_discriminator_features = box_features
         if c5_adapter_fn is not None:
-            box_features = c5_adapter_fn(features, proposals, box_features, is_source=is_source)
+            adapted = c5_adapter_fn(features, proposals, box_features, is_source=is_source)
+            if isinstance(adapted, tuple):
+                box_features, c5_discriminator_features = adapted
+            else:
+                box_features = adapted
+                c5_discriminator_features = box_features
         if attnpool:  # att pooling
             att_feats = attnpool(box_features)
+            if region_reshaper_fn is not None:
+                att_feats = region_reshaper_fn(att_feats)
             #predictions = self.box_predictor(att_feats)
             predictions = self.box_predictor(att_feats)
         else: # mean pooling
-            predictions = self.box_predictor(box_features.mean(dim=[2, 3]))
+            box_features_for_pred = box_features.mean(dim=[2, 3])
+            if region_reshaper_fn is not None:
+                box_features_for_pred = region_reshaper_fn(box_features_for_pred)
+            predictions = self.box_predictor(box_features_for_pred)
 
         if self.training:
+            if region_loss_quality_fn is not None:
+                quality = region_loss_quality_fn(features, proposals, box_features, is_source=is_source)
+                offset = 0
+                for proposals_per_image in proposals:
+                    num_props = len(proposals_per_image)
+                    proposals_per_image.region_quality = quality[offset: offset + num_props]
+                    offset += num_props
             del features
             losses = self.box_predictor.losses(predictions, proposals, is_source)
             if c5_discriminator is not None:
-                c5_dis_feat = torch.nn.functional.adaptive_avg_pool2d(box_features, 1)
+                c5_dis_feat = torch.nn.functional.adaptive_avg_pool2d(c5_discriminator_features, 1)
                 loss_dis_c5_0, loss_dis_c5_1 = c5_discriminator.loss(c5_dis_feat)
                 losses.update({
                     "loss_dis_c5_0": loss_dis_c5_0,
@@ -181,17 +201,30 @@ class CLIPRes5ROIHeads(ROIHeads):
             pred_instances = self.forward_with_given_boxes(features, pred_instances, res5)
             return pred_instances, {}
 
-    def image_level_logits(self, features, proposals, res5=None, attnpool=None, c5_adapter_fn=None, is_source=False):
+    def image_level_logits(
+        self,
+        features,
+        proposals,
+        res5=None,
+        attnpool=None,
+        c5_adapter_fn=None,
+        region_reshaper_fn=None,
+        is_source=False,
+    ):
         proposal_boxes = [x.proposal_boxes for x in proposals]
         box_features = self._shared_roi_transform(
             [features[f] for f in self.in_features], proposal_boxes, res5
         )
         if c5_adapter_fn is not None:
-            box_features = c5_adapter_fn(features, proposals, box_features, is_source=is_source)
+            adapted = c5_adapter_fn(features, proposals, box_features, is_source=is_source)
+            box_features = adapted[0] if isinstance(adapted, tuple) else adapted
         if attnpool:
-            predictions = self.box_predictor(attnpool(box_features))
+            box_features_for_pred = attnpool(box_features)
         else:
-            predictions = self.box_predictor(box_features.mean(dim=[2, 3]))
+            box_features_for_pred = box_features.mean(dim=[2, 3])
+        if region_reshaper_fn is not None:
+            box_features_for_pred = region_reshaper_fn(box_features_for_pred)
+        predictions = self.box_predictor(box_features_for_pred)
         return self.box_predictor.predict_logits(predictions, proposals, is_source)
 
     def forward_with_given_boxes(self, features, instances, res5=None):

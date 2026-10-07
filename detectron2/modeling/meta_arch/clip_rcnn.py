@@ -30,6 +30,50 @@ from detectron2.layers import get_norm
 
 __all__ = ["CLIPFastRCNN", "PretrainFastRCNN"]
 
+
+class NonlinearRegionReshaper(nn.Module):
+    def __init__(
+        self,
+        dim: int,
+        hidden_dim: int,
+        num_layers: int = 1,
+        residual_scale_init: float = 0.1,
+    ):
+        super().__init__()
+        self.num_layers = int(num_layers)
+        if self.num_layers <= 1:
+            self.net = nn.Sequential(
+                nn.LayerNorm(dim),
+                nn.Linear(dim, hidden_dim),
+                nn.GELU(),
+                nn.Linear(hidden_dim, dim),
+            )
+            nn.init.zeros_(self.net[-1].weight)
+            nn.init.zeros_(self.net[-1].bias)
+        else:
+            self.blocks = nn.ModuleList(
+                [
+                    nn.Sequential(
+                        nn.LayerNorm(dim),
+                        nn.Linear(dim, hidden_dim),
+                        nn.GELU(),
+                        nn.Linear(hidden_dim, dim),
+                    )
+                    for _ in range(self.num_layers)
+                ]
+            )
+            self.residual_scales = nn.Parameter(
+                torch.full((self.num_layers,), float(residual_scale_init))
+            )
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        if self.num_layers <= 1:
+            return F.normalize(x + self.net(x), dim=1)
+        for scale, block in zip(self.residual_scales, self.blocks):
+            x = F.normalize(x + scale.to(dtype=x.dtype) * block(x), dim=1)
+        return x
+
+
 @META_ARCH_REGISTRY.register()
 class CLIPFastRCNN(nn.Module):
     """
@@ -64,6 +108,9 @@ class CLIPFastRCNN(nn.Module):
         c3_adapter_perturb_scale: float = 0.1,
         c3_adapter_quality_tau: float = 0.5,
         c3_adapter_quality_logit_temperature: float = 1.0,
+        c3_adapter_quality_mode: str = "certainty_stability",
+        c3_adapter_quality_use: str = "feature_map",
+        c3_adapter_region_loss_weight_scale: float = 1.0,
         c3_adapter_scatter_mode: str = "max",
         c3_adapter_clamp_quality: bool = True,
         c3_adapter_freeze_backbone: bool = True,
@@ -82,10 +129,56 @@ class CLIPFastRCNN(nn.Module):
         c3_adapter_detach_quality_map: bool = False,
         c3_adapter_freeze_quality_proj: bool = False,
         c3_adapter_train_adapter_only: bool = False,
+        c3_adapter_domain_decoupled: bool = False,
+        c3_adapter_domain_shared_scale: float = 5.0,
+        c3_adapter_domain_specific_scale: float = 5.0,
+        c3_adapter_orth_loss_weight: float = 0.0,
+        c3_adapter_inference_domain: str = "target",
         c3_adapter_pooler_resolution: int = 14,
         c3_adapter_pooler_sampling_ratio: int = 0,
         c3_adapter_pooler_type: str = "ROIAlignV2",
         c3_adapter_text_emb_dim: int = 1024,
+        region_reshaper_enabled: bool = False,
+        region_reshaper_stage_a_only: bool = False,
+        region_reshaper_train_only: bool = True,
+        region_reshaper_freeze: bool = False,
+        region_reshaper_hidden_dim: int = 512,
+        region_reshaper_num_layers: int = 1,
+        region_reshaper_residual_scale_init: float = 0.1,
+        region_reshaper_source_loss_weight: float = 1.0,
+        region_reshaper_target_mil_loss_weight: float = 0.2,
+        region_reshaper_target_topk: int = 5,
+        c5_semantic_reshaper_enabled: bool = False,
+        c5_semantic_reshaper_stage_a_only: bool = False,
+        c5_semantic_reshaper_train_only: bool = True,
+        c5_semantic_reshaper_freeze: bool = False,
+        c5_semantic_reshaper_hidden_dim: int = 512,
+        c5_semantic_reshaper_num_layers: int = 1,
+        c5_semantic_reshaper_residual_scale_init: float = 0.1,
+        c5_semantic_reshaper_gamma_init: float = 0.0,
+        c5_semantic_reshaper_source_loss_weight: float = 1.0,
+        c5_semantic_reshaper_target_mil_loss_weight: float = 0.2,
+        c5_semantic_reshaper_target_topk: int = 5,
+        c5_semantic_reshaper_adapted_loss_weight: float = 0.2,
+        c4_semantic_reshaper_enabled: bool = False,
+        c4_semantic_reshaper_stage_a_only: bool = False,
+        c4_semantic_reshaper_train_only: bool = True,
+        c4_semantic_reshaper_freeze: bool = False,
+        c4_semantic_reshaper_hidden_dim: int = 512,
+        c4_semantic_reshaper_num_layers: int = 1,
+        c4_semantic_reshaper_residual_scale_init: float = 0.1,
+        c4_semantic_reshaper_gamma_init: float = 0.0,
+        c4_semantic_reshaper_learnable_gamma: bool = True,
+        c4_semantic_reshaper_source_loss_weight: float = 1.0,
+        c4_semantic_reshaper_target_mil_loss_weight: float = 0.2,
+        c4_semantic_reshaper_target_topk: int = 5,
+        c4_semantic_reshaper_semantic_aux_loss_weight: float = 0.5,
+        offline_rpn_teacher_enabled: bool = False,
+        offline_rpn_teacher_loss_weight: float = 1.0,
+        offline_rpn_teacher_obj_threshold: float = 0.7,
+        offline_rpn_teacher_semantic_threshold: float = 0.2,
+        offline_rpn_teacher_max_pseudo_boxes: int = 128,
+        offline_rpn_teacher_semantic_filter: bool = True,
     ):
         """
         Args:
@@ -103,6 +196,30 @@ class CLIPFastRCNN(nn.Module):
         self.lang_encoder = language_encoder
         self.offline_proposal_generator = offline_proposal_generator
         self.roi_heads = roi_heads
+        self.offline_rpn_teacher_enabled = offline_rpn_teacher_enabled
+        self.offline_rpn_teacher_loss_weight = offline_rpn_teacher_loss_weight
+        self.offline_rpn_teacher_obj_threshold = offline_rpn_teacher_obj_threshold
+        self.offline_rpn_teacher_semantic_threshold = offline_rpn_teacher_semantic_threshold
+        self.offline_rpn_teacher_max_pseudo_boxes = offline_rpn_teacher_max_pseudo_boxes
+        self.offline_rpn_teacher_semantic_filter = offline_rpn_teacher_semantic_filter
+        self.region_reshaper_enabled = region_reshaper_enabled
+        self.region_reshaper_stage_a_only = region_reshaper_stage_a_only
+        self.region_reshaper_source_loss_weight = region_reshaper_source_loss_weight
+        self.region_reshaper_target_mil_loss_weight = region_reshaper_target_mil_loss_weight
+        self.region_reshaper_target_topk = region_reshaper_target_topk
+        self.c5_semantic_reshaper_enabled = c5_semantic_reshaper_enabled
+        self.c5_semantic_reshaper_stage_a_only = c5_semantic_reshaper_stage_a_only
+        self.c5_semantic_reshaper_source_loss_weight = c5_semantic_reshaper_source_loss_weight
+        self.c5_semantic_reshaper_target_mil_loss_weight = c5_semantic_reshaper_target_mil_loss_weight
+        self.c5_semantic_reshaper_target_topk = c5_semantic_reshaper_target_topk
+        self.c5_semantic_reshaper_adapted_loss_weight = c5_semantic_reshaper_adapted_loss_weight
+        self.c4_semantic_reshaper_enabled = c4_semantic_reshaper_enabled
+        self.c4_semantic_reshaper_stage_a_only = c4_semantic_reshaper_stage_a_only
+        self.c4_semantic_reshaper_source_loss_weight = c4_semantic_reshaper_source_loss_weight
+        self.c4_semantic_reshaper_target_mil_loss_weight = c4_semantic_reshaper_target_mil_loss_weight
+        self.c4_semantic_reshaper_target_topk = c4_semantic_reshaper_target_topk
+        self.c4_semantic_reshaper_semantic_aux_loss_weight = c4_semantic_reshaper_semantic_aux_loss_weight
+        self.c4_semantic_reshaper_learnable_gamma = c4_semantic_reshaper_learnable_gamma
 
         self.input_format = input_format
         self.vis_period = vis_period
@@ -138,6 +255,9 @@ class CLIPFastRCNN(nn.Module):
         self.c3_adapter_perturb_scale = c3_adapter_perturb_scale
         self.c3_adapter_quality_tau = c3_adapter_quality_tau
         self.c3_adapter_quality_logit_temperature = c3_adapter_quality_logit_temperature
+        self.c3_adapter_quality_mode = c3_adapter_quality_mode
+        self.c3_adapter_quality_use = c3_adapter_quality_use
+        self.c3_adapter_region_loss_weight_scale = c3_adapter_region_loss_weight_scale
         self.c3_adapter_scatter_mode = c3_adapter_scatter_mode
         self.c3_adapter_clamp_quality = c3_adapter_clamp_quality
         self.c3_adapter_observe_period = c3_adapter_observe_period
@@ -152,15 +272,37 @@ class CLIPFastRCNN(nn.Module):
         self.c3_adapter_supervised_proj_use_proposals = c3_adapter_supervised_proj_use_proposals
         self.c3_adapter_supervised_proj_feature = c3_adapter_supervised_proj_feature
         self.c3_adapter_detach_quality_map = c3_adapter_detach_quality_map
+        self.c3_adapter_domain_decoupled = c3_adapter_domain_decoupled
+        self.c3_adapter_domain_shared_scale = c3_adapter_domain_shared_scale
+        self.c3_adapter_domain_specific_scale = c3_adapter_domain_specific_scale
+        self.c3_adapter_orth_loss_weight = c3_adapter_orth_loss_weight
+        self.c3_adapter_inference_domain = c3_adapter_inference_domain
+        self.c3_adapter_orth_losses = {}
         if self.c3_adapter_enabled:
             if not self.use_clip_c4:
                 raise ValueError("C3 adapter currently supports CLIP C4 backbones only.")
+            if self.c3_adapter_inference_domain not in ("source", "target"):
+                raise ValueError("C3_ADAPTER.INFERENCE_DOMAIN must be 'source' or 'target'.")
+            if self.c3_adapter_quality_mode not in ("certainty_stability", "certainty_only", "stability_only"):
+                raise ValueError(
+                    "C3_ADAPTER.QUALITY_MODE must be 'certainty_stability', 'certainty_only', or 'stability_only'."
+                )
+            if self.c3_adapter_quality_use not in ("feature_map", "region_loss"):
+                raise ValueError(
+                    "C3_ADAPTER.QUALITY_USE must be 'feature_map' or 'region_loss'."
+                )
             if c3_adapter_freeze_backbone:
                 for p in self.backbone.parameters():
                     p.requires_grad = False
             c3_channels = 512
             c4_channels = 1024
             c5_channels = 2048
+            def make_adapter(channels):
+                return nn.Sequential(
+                    nn.Conv2d(channels, c3_adapter_hidden_dim, kernel_size=1),
+                    nn.ReLU(inplace=True),
+                    nn.Conv2d(c3_adapter_hidden_dim, channels, kernel_size=1),
+                )
             self.c3_adapter = nn.Sequential(
                 nn.Conv2d(c3_channels, c3_adapter_hidden_dim, kernel_size=1),
                 nn.ReLU(inplace=True),
@@ -176,6 +318,26 @@ class CLIPFastRCNN(nn.Module):
                 nn.ReLU(inplace=True),
                 nn.Conv2d(c3_adapter_hidden_dim, c5_channels, kernel_size=1),
             )
+            if self.c3_adapter_domain_decoupled:
+                self.c3_shared_adapter = make_adapter(c3_channels)
+                self.c3_source_adapter = make_adapter(c3_channels)
+                self.c3_target_adapter = make_adapter(c3_channels)
+                self.c4_shared_adapter = make_adapter(c4_channels)
+                self.c4_source_adapter = make_adapter(c4_channels)
+                self.c4_target_adapter = make_adapter(c4_channels)
+                self.c5_shared_adapter = make_adapter(c5_channels)
+                self.c5_source_adapter = make_adapter(c5_channels)
+                self.c5_target_adapter = make_adapter(c5_channels)
+            else:
+                self.c3_shared_adapter = None
+                self.c3_source_adapter = None
+                self.c3_target_adapter = None
+                self.c4_shared_adapter = None
+                self.c4_source_adapter = None
+                self.c4_target_adapter = None
+                self.c5_shared_adapter = None
+                self.c5_source_adapter = None
+                self.c5_target_adapter = None
             self.c3_quality_pooler = ROIPooler(
                 output_size=c3_adapter_pooler_resolution,
                 scales=(1.0 / 8.0,),
@@ -195,6 +357,15 @@ class CLIPFastRCNN(nn.Module):
             self.c3_adapter = None
             self.c4_adapter = None
             self.c5_adapter = None
+            self.c3_shared_adapter = None
+            self.c3_source_adapter = None
+            self.c3_target_adapter = None
+            self.c4_shared_adapter = None
+            self.c4_source_adapter = None
+            self.c4_target_adapter = None
+            self.c5_shared_adapter = None
+            self.c5_source_adapter = None
+            self.c5_target_adapter = None
             self.c3_quality_pooler = None
             self.c3_quality_proj = None
             self.c4_quality_pooler = None
@@ -233,6 +404,20 @@ class CLIPFastRCNN(nn.Module):
                 p.requires_grad = True
             for p in self.c5_adapter.parameters():
                 p.requires_grad = True
+            for adapter in [
+                self.c3_shared_adapter,
+                self.c3_source_adapter,
+                self.c3_target_adapter,
+                self.c4_shared_adapter,
+                self.c4_source_adapter,
+                self.c4_target_adapter,
+                self.c5_shared_adapter,
+                self.c5_source_adapter,
+                self.c5_target_adapter,
+            ]:
+                if adapter is not None:
+                    for p in adapter.parameters():
+                        p.requires_grad = True
             if self.Discriminator is not None:
                 for p in self.Discriminator.parameters():
                     p.requires_grad = True
@@ -256,8 +441,119 @@ class CLIPFastRCNN(nn.Module):
                         self.c3_adapter_supervised_proj_feature
                     )
                 )
-            for p in supervised_proj.parameters():
+
+        self.region_reshaper = (
+            NonlinearRegionReshaper(
+                c3_adapter_text_emb_dim,
+                region_reshaper_hidden_dim,
+                num_layers=region_reshaper_num_layers,
+                residual_scale_init=region_reshaper_residual_scale_init,
+            )
+            if self.region_reshaper_enabled
+            else None
+        )
+        self.c5_semantic_projector = None
+        self.c5_semantic_reshaper = None
+        self.c5_semantic_back_projector = None
+        self.c5_semantic_gamma = None
+        self.c4_semantic_projector = None
+        self.c4_semantic_reshaper = None
+        self.c4_semantic_adapter = None
+        self.c4_semantic_gamma = None
+        self.c4_semantic_pooler = None
+        self.c4_semantic_last = {}
+        if self.c5_semantic_reshaper_enabled:
+            self.c5_semantic_projector = nn.Linear(c3_adapter_text_emb_dim, c3_adapter_text_emb_dim, bias=False)
+            self.c5_semantic_reshaper = NonlinearRegionReshaper(
+                c3_adapter_text_emb_dim,
+                c5_semantic_reshaper_hidden_dim,
+                num_layers=c5_semantic_reshaper_num_layers,
+                residual_scale_init=c5_semantic_reshaper_residual_scale_init,
+            )
+            self.c5_semantic_back_projector = nn.Linear(c3_adapter_text_emb_dim, c3_adapter_text_emb_dim, bias=False)
+            nn.init.eye_(self.c5_semantic_projector.weight)
+            nn.init.eye_(self.c5_semantic_back_projector.weight)
+            self.c5_semantic_gamma = nn.Parameter(
+                torch.tensor(float(c5_semantic_reshaper_gamma_init))
+            )
+        if self.c4_semantic_reshaper_enabled:
+            c4_channels = 1024
+            self.c4_semantic_projector = nn.Linear(c4_channels, c3_adapter_text_emb_dim, bias=False)
+            self.c4_semantic_reshaper = NonlinearRegionReshaper(
+                c3_adapter_text_emb_dim,
+                c4_semantic_reshaper_hidden_dim,
+                num_layers=c4_semantic_reshaper_num_layers,
+                residual_scale_init=c4_semantic_reshaper_residual_scale_init,
+            )
+            self.c4_semantic_adapter = nn.Sequential(
+                nn.Conv2d(c4_channels, c4_semantic_reshaper_hidden_dim, kernel_size=1),
+                nn.ReLU(inplace=True),
+                nn.Conv2d(c4_semantic_reshaper_hidden_dim, c4_channels, kernel_size=1),
+            )
+            self.c4_semantic_pooler = ROIPooler(
+                output_size=c3_adapter_pooler_resolution,
+                scales=(1.0 / 16.0,),
+                sampling_ratio=c3_adapter_pooler_sampling_ratio,
+                pooler_type=c3_adapter_pooler_type,
+            )
+            gamma = torch.tensor(float(c4_semantic_reshaper_gamma_init))
+            if c4_semantic_reshaper_learnable_gamma:
+                self.c4_semantic_gamma = nn.Parameter(gamma)
+            else:
+                del self.c4_semantic_gamma
+                self.register_buffer("c4_semantic_gamma", gamma)
+        if region_reshaper_train_only and self.region_reshaper_enabled:
+            if not self.region_reshaper_enabled:
+                raise ValueError("TRAIN_RESHAPER_ONLY requires REGION_RESHAPER.ENABLED=True.")
+            for p in self.parameters():
+                p.requires_grad = False
+            for p in self.region_reshaper.parameters():
                 p.requires_grad = True
+        elif region_reshaper_freeze and self.region_reshaper is not None:
+            for p in self.region_reshaper.parameters():
+                p.requires_grad = False
+        if c5_semantic_reshaper_train_only and self.c5_semantic_reshaper_enabled:
+            for p in self.parameters():
+                p.requires_grad = False
+            for module in [
+                self.c5_semantic_projector,
+                self.c5_semantic_reshaper,
+                self.c5_semantic_back_projector,
+            ]:
+                for p in module.parameters():
+                    p.requires_grad = True
+            self.c5_semantic_gamma.requires_grad = True
+        elif c5_semantic_reshaper_freeze and self.c5_semantic_reshaper_enabled:
+            for module in [
+                self.c5_semantic_projector,
+                self.c5_semantic_reshaper,
+                self.c5_semantic_back_projector,
+            ]:
+                for p in module.parameters():
+                    p.requires_grad = False
+            self.c5_semantic_gamma.requires_grad = False
+        if c4_semantic_reshaper_train_only and self.c4_semantic_reshaper_enabled:
+            for p in self.parameters():
+                p.requires_grad = False
+            for module in [
+                self.c4_semantic_projector,
+                self.c4_semantic_reshaper,
+                self.c4_semantic_adapter,
+            ]:
+                for p in module.parameters():
+                    p.requires_grad = True
+            if isinstance(self.c4_semantic_gamma, nn.Parameter):
+                self.c4_semantic_gamma.requires_grad = True
+        elif c4_semantic_reshaper_freeze and self.c4_semantic_reshaper_enabled:
+            for module in [
+                self.c4_semantic_projector,
+                self.c4_semantic_reshaper,
+                self.c4_semantic_adapter,
+            ]:
+                for p in module.parameters():
+                    p.requires_grad = False
+            if isinstance(self.c4_semantic_gamma, nn.Parameter):
+                self.c4_semantic_gamma.requires_grad = False
 
     @classmethod
     def from_config(cls, cfg):
@@ -281,11 +577,17 @@ class CLIPFastRCNN(nn.Module):
             offline_backbone = build_backbone(offline_cfg)
             offline_rpn = build_proposal_generator(offline_cfg, offline_backbone.output_shape())
 
-            # convert to evaluation mode
-            for p in offline_backbone.parameters(): p.requires_grad = False
-            for p in offline_rpn.parameters(): p.requires_grad = False
-            offline_backbone.eval()
-            offline_rpn.eval()
+            if cfg.MODEL.OFFLINE_RPN_TEACHER.ENABLED:
+                for p in offline_backbone.parameters(): p.requires_grad = True
+                for p in offline_rpn.parameters(): p.requires_grad = True
+                offline_backbone.train()
+                offline_rpn.train()
+            else:
+                # convert to evaluation mode
+                for p in offline_backbone.parameters(): p.requires_grad = False
+                for p in offline_rpn.parameters(): p.requires_grad = False
+                offline_backbone.eval()
+                offline_rpn.eval()
         # region proposals are ground-truth boxes
         elif cfg.MODEL.CLIP.CROP_REGION_TYPE == "GT":
             offline_backbone = None
@@ -323,6 +625,9 @@ class CLIPFastRCNN(nn.Module):
             "c3_adapter_perturb_scale": cfg.MODEL.C3_ADAPTER.PERTURB_SCALE,
             "c3_adapter_quality_tau": cfg.MODEL.C3_ADAPTER.QUALITY_TAU,
             "c3_adapter_quality_logit_temperature": cfg.MODEL.C3_ADAPTER.QUALITY_LOGIT_TEMPERATURE,
+            "c3_adapter_quality_mode": cfg.MODEL.C3_ADAPTER.QUALITY_MODE,
+            "c3_adapter_quality_use": cfg.MODEL.C3_ADAPTER.QUALITY_USE,
+            "c3_adapter_region_loss_weight_scale": cfg.MODEL.C3_ADAPTER.REGION_LOSS_WEIGHT_SCALE,
             "c3_adapter_scatter_mode": cfg.MODEL.C3_ADAPTER.SCATTER_MODE,
             "c3_adapter_clamp_quality": cfg.MODEL.C3_ADAPTER.CLAMP_QUALITY,
             "c3_adapter_freeze_backbone": cfg.MODEL.C3_ADAPTER.FREEZE_BACKBONE,
@@ -341,10 +646,56 @@ class CLIPFastRCNN(nn.Module):
             "c3_adapter_detach_quality_map": cfg.MODEL.C3_ADAPTER.DETACH_QUALITY_MAP,
             "c3_adapter_freeze_quality_proj": cfg.MODEL.C3_ADAPTER.FREEZE_QUALITY_PROJ,
             "c3_adapter_train_adapter_only": cfg.MODEL.C3_ADAPTER.TRAIN_ADAPTER_ONLY,
+            "c3_adapter_domain_decoupled": cfg.MODEL.C3_ADAPTER.DOMAIN_DECOUPLED,
+            "c3_adapter_domain_shared_scale": cfg.MODEL.C3_ADAPTER.DOMAIN_SHARED_SCALE,
+            "c3_adapter_domain_specific_scale": cfg.MODEL.C3_ADAPTER.DOMAIN_SPECIFIC_SCALE,
+            "c3_adapter_orth_loss_weight": cfg.MODEL.C3_ADAPTER.ORTH_LOSS_WEIGHT,
+            "c3_adapter_inference_domain": cfg.MODEL.C3_ADAPTER.INFERENCE_DOMAIN,
             "c3_adapter_pooler_resolution": cfg.MODEL.ROI_BOX_HEAD.POOLER_RESOLUTION,
             "c3_adapter_pooler_sampling_ratio": cfg.MODEL.ROI_BOX_HEAD.POOLER_SAMPLING_RATIO,
             "c3_adapter_pooler_type": cfg.MODEL.ROI_BOX_HEAD.POOLER_TYPE,
             "c3_adapter_text_emb_dim": cfg.MODEL.CLIP.TEXT_EMB_DIM,
+            "region_reshaper_enabled": cfg.MODEL.REGION_RESHAPER.ENABLED,
+            "region_reshaper_stage_a_only": cfg.MODEL.REGION_RESHAPER.STAGE_A_ONLY,
+            "region_reshaper_train_only": cfg.MODEL.REGION_RESHAPER.TRAIN_RESHAPER_ONLY,
+            "region_reshaper_freeze": cfg.MODEL.REGION_RESHAPER.FREEZE,
+            "region_reshaper_hidden_dim": cfg.MODEL.REGION_RESHAPER.HIDDEN_DIM,
+            "region_reshaper_num_layers": cfg.MODEL.REGION_RESHAPER.NUM_LAYERS,
+            "region_reshaper_residual_scale_init": cfg.MODEL.REGION_RESHAPER.RESIDUAL_SCALE_INIT,
+            "region_reshaper_source_loss_weight": cfg.MODEL.REGION_RESHAPER.SOURCE_LOSS_WEIGHT,
+            "region_reshaper_target_mil_loss_weight": cfg.MODEL.REGION_RESHAPER.TARGET_MIL_LOSS_WEIGHT,
+            "region_reshaper_target_topk": cfg.MODEL.REGION_RESHAPER.TARGET_TOPK,
+            "c5_semantic_reshaper_enabled": cfg.MODEL.C5_SEMANTIC_RESHAPER.ENABLED,
+            "c5_semantic_reshaper_stage_a_only": cfg.MODEL.C5_SEMANTIC_RESHAPER.STAGE_A_ONLY,
+            "c5_semantic_reshaper_train_only": cfg.MODEL.C5_SEMANTIC_RESHAPER.TRAIN_ONLY,
+            "c5_semantic_reshaper_freeze": cfg.MODEL.C5_SEMANTIC_RESHAPER.FREEZE,
+            "c5_semantic_reshaper_hidden_dim": cfg.MODEL.C5_SEMANTIC_RESHAPER.HIDDEN_DIM,
+            "c5_semantic_reshaper_num_layers": cfg.MODEL.C5_SEMANTIC_RESHAPER.NUM_LAYERS,
+            "c5_semantic_reshaper_residual_scale_init": cfg.MODEL.C5_SEMANTIC_RESHAPER.RESIDUAL_SCALE_INIT,
+            "c5_semantic_reshaper_gamma_init": cfg.MODEL.C5_SEMANTIC_RESHAPER.GAMMA_INIT,
+            "c5_semantic_reshaper_source_loss_weight": cfg.MODEL.C5_SEMANTIC_RESHAPER.SOURCE_LOSS_WEIGHT,
+            "c5_semantic_reshaper_target_mil_loss_weight": cfg.MODEL.C5_SEMANTIC_RESHAPER.TARGET_MIL_LOSS_WEIGHT,
+            "c5_semantic_reshaper_target_topk": cfg.MODEL.C5_SEMANTIC_RESHAPER.TARGET_TOPK,
+            "c5_semantic_reshaper_adapted_loss_weight": cfg.MODEL.C5_SEMANTIC_RESHAPER.ADAPTED_LOSS_WEIGHT,
+            "c4_semantic_reshaper_enabled": cfg.MODEL.C4_SEMANTIC_RESHAPER.ENABLED,
+            "c4_semantic_reshaper_stage_a_only": cfg.MODEL.C4_SEMANTIC_RESHAPER.STAGE_A_ONLY,
+            "c4_semantic_reshaper_train_only": cfg.MODEL.C4_SEMANTIC_RESHAPER.TRAIN_ONLY,
+            "c4_semantic_reshaper_freeze": cfg.MODEL.C4_SEMANTIC_RESHAPER.FREEZE,
+            "c4_semantic_reshaper_hidden_dim": cfg.MODEL.C4_SEMANTIC_RESHAPER.HIDDEN_DIM,
+            "c4_semantic_reshaper_num_layers": cfg.MODEL.C4_SEMANTIC_RESHAPER.NUM_LAYERS,
+            "c4_semantic_reshaper_residual_scale_init": cfg.MODEL.C4_SEMANTIC_RESHAPER.RESIDUAL_SCALE_INIT,
+            "c4_semantic_reshaper_gamma_init": cfg.MODEL.C4_SEMANTIC_RESHAPER.GAMMA_INIT,
+            "c4_semantic_reshaper_learnable_gamma": cfg.MODEL.C4_SEMANTIC_RESHAPER.LEARNABLE_GAMMA,
+            "c4_semantic_reshaper_source_loss_weight": cfg.MODEL.C4_SEMANTIC_RESHAPER.SOURCE_LOSS_WEIGHT,
+            "c4_semantic_reshaper_target_mil_loss_weight": cfg.MODEL.C4_SEMANTIC_RESHAPER.TARGET_MIL_LOSS_WEIGHT,
+            "c4_semantic_reshaper_target_topk": cfg.MODEL.C4_SEMANTIC_RESHAPER.TARGET_TOPK,
+            "c4_semantic_reshaper_semantic_aux_loss_weight": cfg.MODEL.C4_SEMANTIC_RESHAPER.SEMANTIC_AUX_LOSS_WEIGHT,
+            "offline_rpn_teacher_enabled": cfg.MODEL.OFFLINE_RPN_TEACHER.ENABLED,
+            "offline_rpn_teacher_loss_weight": cfg.MODEL.OFFLINE_RPN_TEACHER.LOSS_WEIGHT,
+            "offline_rpn_teacher_obj_threshold": cfg.MODEL.OFFLINE_RPN_TEACHER.OBJ_THRESHOLD,
+            "offline_rpn_teacher_semantic_threshold": cfg.MODEL.OFFLINE_RPN_TEACHER.SEMANTIC_THRESHOLD,
+            "offline_rpn_teacher_max_pseudo_boxes": cfg.MODEL.OFFLINE_RPN_TEACHER.MAX_PSEUDO_BOXES,
+            "offline_rpn_teacher_semantic_filter": cfg.MODEL.OFFLINE_RPN_TEACHER.SEMANTIC_FILTER,
         }
 
     @property
@@ -384,6 +735,12 @@ class CLIPFastRCNN(nn.Module):
             return self.image_level_predictions(batched_inputs, is_source=is_source)
         if not self.training:
             return self.inference(batched_inputs)
+        if self.c4_semantic_reshaper_stage_a_only:
+            return self.c4_semantic_reshaper_stage_a_losses(batched_inputs, is_source=is_source)
+        if self.c5_semantic_reshaper_stage_a_only:
+            return self.c5_semantic_reshaper_stage_a_losses(batched_inputs, is_source=is_source)
+        if self.region_reshaper_stage_a_only:
+            return self.region_reshaper_stage_a_losses(batched_inputs, is_source=is_source)
         if "instances" in batched_inputs[0]:
             gt_instances = [x["instances"].to(self.device) for x in batched_inputs]
         else:
@@ -429,9 +786,11 @@ class CLIPFastRCNN(nn.Module):
 
         if self.da_pro_enabled:
             da_feature_name = "res3" if self.c3_adapter_enabled else "res4"
-            loss_dis_0, loss_dis_1 = self.Discriminator.loss(features[da_feature_name])
+            da_features = self.c3_adapter_shared_features.get(da_feature_name, features[da_feature_name])
+            loss_dis_0, loss_dis_1 = self.Discriminator.loss(da_features)
             if self.C4Discriminator is not None:
-                loss_dis_c4_0, loss_dis_c4_1 = self.C4Discriminator.loss(features["res4"])
+                c4_da_features = self.c3_adapter_shared_features.get("res4", features["res4"])
+                loss_dis_c4_0, loss_dis_c4_1 = self.C4Discriminator.loss(c4_da_features)
 
 
         # Given the proposals, crop region features from 2D image features and classify the regions
@@ -445,7 +804,9 @@ class CLIPFastRCNN(nn.Module):
                     res5=self.backbone.layer4,
                     attnpool=self.backbone.attnpool,
                     c5_adapter_fn=self.c5_adapter_roi_features if self.c5_adapter_apply_residual else None,
+                    region_loss_quality_fn=self.region_loss_quality if self.use_region_loss_quality() else None,
                     c5_discriminator=self.C5Discriminator,
+                    region_reshaper_fn=self.active_region_reshaper_fn(),
                     is_source=is_source,
                     return_logits=return_image_level,
                 )
@@ -457,7 +818,9 @@ class CLIPFastRCNN(nn.Module):
                     gt_instances,
                     res5=self.backbone.layer4,
                     c5_adapter_fn=self.c5_adapter_roi_features if self.c5_adapter_apply_residual else None,
+                    region_loss_quality_fn=self.region_loss_quality if self.use_region_loss_quality() else None,
                     c5_discriminator=self.C5Discriminator,
+                    region_reshaper_fn=self.active_region_reshaper_fn(),
                     is_source=is_source,
                     return_logits=return_image_level,
                 )
@@ -469,6 +832,8 @@ class CLIPFastRCNN(nn.Module):
                     proposals,
                     gt_instances,
                     attnpool=self.backbone.bottom_up.attnpool,
+                    region_loss_quality_fn=self.region_loss_quality if self.use_region_loss_quality() else None,
+                    region_reshaper_fn=self.active_region_reshaper_fn(),
                     is_source=is_source,
                     return_logits=return_image_level,
                 )
@@ -478,6 +843,8 @@ class CLIPFastRCNN(nn.Module):
                     features,
                     proposals,
                     gt_instances,
+                    region_loss_quality_fn=self.region_loss_quality if self.use_region_loss_quality() else None,
+                    region_reshaper_fn=self.active_region_reshaper_fn(),
                     is_source=is_source,
                     return_logits=return_image_level,
                 )
@@ -501,6 +868,9 @@ class CLIPFastRCNN(nn.Module):
             if self.C4Discriminator is not None:
                 losses.update({'loss_dis_c4_0': loss_dis_c4_0})
                 losses.update({'loss_dis_c4_1': loss_dis_c4_1})
+        if self.c3_adapter_domain_decoupled and self.c3_adapter_orth_loss_weight > 0:
+            for name, loss in self.c3_adapter_orth_losses.items():
+                losses[f"loss_orth_{name}"] = loss * self.c3_adapter_orth_loss_weight
         if return_image_level:
             image_probs = [
                 self.h2fa_image_level_aggregate(x, o)
@@ -508,6 +878,625 @@ class CLIPFastRCNN(nn.Module):
             ]
             return losses, image_probs
         return losses
+
+    def region_reshaper_zero_loss(self):
+        if self.region_reshaper is None:
+            return self.pixel_mean.sum() * 0.0
+        return sum(p.sum() for p in self.region_reshaper.parameters()) * 0.0
+
+    def c5_semantic_zero_loss(self):
+        if not self.c5_semantic_reshaper_enabled:
+            return self.pixel_mean.sum() * 0.0
+        zero = self.c5_semantic_gamma.sum() * 0.0
+        for module in [
+            self.c5_semantic_projector,
+            self.c5_semantic_reshaper,
+            self.c5_semantic_back_projector,
+        ]:
+            zero = zero + sum(p.sum() for p in module.parameters()) * 0.0
+        return zero
+
+    def active_region_reshaper_fn(self):
+        if self.c5_semantic_reshaper_enabled and not self.c5_semantic_reshaper_stage_a_only:
+            return self.c5_semantic_apply
+        if self.region_reshaper_enabled:
+            return self.region_reshaper
+        return None
+
+    def maybe_apply_active_region_reshaper(self, embeddings: torch.Tensor) -> torch.Tensor:
+        fn = self.active_region_reshaper_fn()
+        return fn(embeddings) if fn is not None else embeddings
+
+    def c5_semantic_logits(self, embeddings: torch.Tensor) -> torch.Tensor:
+        if embeddings.numel() == 0:
+            return embeddings.new_zeros((0, self.roi_heads.num_classes))
+        text_weight = self.roi_heads.box_predictor.cls_score.weight[: self.roi_heads.num_classes]
+        logits = F.normalize(embeddings, dim=1) @ F.normalize(text_weight, dim=1).t()
+        temperature = getattr(self.roi_heads.box_predictor, "temperature", 1.0)
+        return logits / temperature
+
+    def c5_semantic_certainty(self, semantic_embeddings: torch.Tensor) -> torch.Tensor:
+        if semantic_embeddings.numel() == 0:
+            return semantic_embeddings.new_zeros((0, 1))
+        logits = self.c5_semantic_logits(semantic_embeddings)
+        probs = F.softmax(logits, dim=1)
+        entropy = -(probs.clamp_min(1e-12) * probs.clamp_min(1e-12).log()).sum(dim=1)
+        effective_classes = entropy.exp()
+        denom = max(self.roi_heads.num_classes - 1, 1)
+        q = (self.roi_heads.num_classes - effective_classes) / denom
+        return q.clamp(0.0, 1.0).view(-1, 1)
+
+    def c5_semantic_components(self, embeddings: torch.Tensor):
+        semantic = self.c5_semantic_projector(embeddings)
+        reshaped_semantic = self.c5_semantic_reshaper(semantic)
+        q = self.c5_semantic_certainty(reshaped_semantic).detach()
+        residual = self.c5_semantic_back_projector(reshaped_semantic - semantic)
+        gamma = self.c5_semantic_gamma.to(dtype=embeddings.dtype)
+        adapted = embeddings + gamma * q.to(dtype=embeddings.dtype) * residual
+        return semantic, reshaped_semantic, adapted, q
+
+    def c5_semantic_apply(self, embeddings: torch.Tensor) -> torch.Tensor:
+        if embeddings.numel() == 0:
+            return embeddings
+        _, _, adapted, _ = self.c5_semantic_components(embeddings)
+        return adapted
+
+    def c5_semantic_target_mil_loss(self, logits, proposals, batched_inputs, prefix):
+        labels = self.region_reshaper_image_labels(batched_inputs)
+        counts = [len(p) for p in proposals]
+        per_image_logits = logits.split(counts, dim=0)
+        losses = []
+        positive_scores = []
+        negative_scores = []
+        for img_logits, img_labels in zip(per_image_logits, labels):
+            if img_logits.numel() == 0:
+                image_logits = img_labels.new_zeros(img_labels.shape)
+            else:
+                k = min(max(int(self.c5_semantic_reshaper_target_topk), 1), img_logits.shape[0])
+                image_logits = img_logits.topk(k, dim=0).values.mean(dim=0)
+            losses.append(F.binary_cross_entropy_with_logits(image_logits, img_labels, reduction="mean"))
+            if img_labels.sum() > 0:
+                positive_scores.append(image_logits[img_labels > 0].detach().sigmoid().mean())
+            if (img_labels == 0).any():
+                negative_scores.append(image_logits[img_labels == 0].detach().sigmoid().mean())
+        storage = get_event_storage()
+        storage.put_scalar(
+            f"{prefix}/target_labels_per_image",
+            float(torch.stack([x.sum() for x in labels]).mean().item()) if labels else 0.0,
+            smoothing_hint=False,
+        )
+        if positive_scores:
+            storage.put_scalar(
+                f"{prefix}/target_pos_prob",
+                float(torch.stack(positive_scores).mean().item()),
+                smoothing_hint=False,
+            )
+        if negative_scores:
+            storage.put_scalar(
+                f"{prefix}/target_neg_prob",
+                float(torch.stack(negative_scores).mean().item()),
+                smoothing_hint=False,
+            )
+        if not losses:
+            return self.c5_semantic_zero_loss()
+        return torch.stack(losses).mean()
+
+    def c5_semantic_observe(self, reshaped_semantic, adapted, base_embeddings, q, prefix):
+        storage = get_event_storage()
+        storage.put_scalar(f"{prefix}/q_mean", float(q.mean().item()) if q.numel() else 0.0, smoothing_hint=False)
+        storage.put_scalar(f"{prefix}/q_max", float(q.max().item()) if q.numel() else 0.0, smoothing_hint=False)
+        storage.put_scalar(f"{prefix}/gamma", float(self.c5_semantic_gamma.detach().item()), smoothing_hint=False)
+        if base_embeddings.numel() == 0:
+            return
+        with torch.no_grad():
+            delta = adapted - base_embeddings
+            storage.put_scalar(
+                f"{prefix}/adapt_delta_norm",
+                float(delta.float().norm(dim=1).mean().item()),
+                smoothing_hint=False,
+            )
+            storage.put_scalar(
+                f"{prefix}/semantic_norm",
+                float(reshaped_semantic.float().norm(dim=1).mean().item()),
+                smoothing_hint=False,
+            )
+
+    def c5_semantic_reshaper_stage_a_losses(self, batched_inputs, is_source: bool):
+        if not self.c5_semantic_reshaper_enabled:
+            raise ValueError(
+                "C5_SEMANTIC_RESHAPER.STAGE_A_ONLY requires C5_SEMANTIC_RESHAPER.ENABLED=True."
+            )
+        proposals = self.normal_region_proposals(batched_inputs)
+        if is_source:
+            if "instances" not in batched_inputs[0]:
+                return {"loss_c5_sem_src_ce": self.c5_semantic_zero_loss()}
+            gt_instances = [x["instances"].to(self.device) for x in batched_inputs]
+            with torch.no_grad():
+                proposals = self.roi_heads.label_and_sample_proposals(proposals, gt_instances)
+            embeddings = self.region_reshaper_embeddings(batched_inputs, proposals, is_source=True)
+            _, reshaped_semantic, adapted, q = self.c5_semantic_components(embeddings)
+            semantic_logits = self.c5_semantic_logits(reshaped_semantic)
+            adapted_logits = self.c5_semantic_logits(adapted)
+            gt_classes = torch.cat([p.gt_classes for p in proposals], dim=0) if proposals else semantic_logits.new_zeros((0,), dtype=torch.long)
+            fg = (gt_classes >= 0) & (gt_classes < self.roi_heads.num_classes)
+            self.c5_semantic_observe(reshaped_semantic, adapted, embeddings, q, "c5_semantic_reshaper/source")
+            if fg.any():
+                src_loss = F.cross_entropy(semantic_logits[fg], gt_classes[fg].long())
+                if self.c5_semantic_reshaper_adapted_loss_weight > 0:
+                    src_loss = src_loss + self.c5_semantic_reshaper_adapted_loss_weight * F.cross_entropy(
+                        adapted_logits[fg],
+                        gt_classes[fg].long(),
+                    )
+                loss = src_loss * self.c5_semantic_reshaper_source_loss_weight
+                pred = semantic_logits[fg].argmax(dim=1)
+                acc = (pred == gt_classes[fg]).float().mean()
+                gt_score = semantic_logits[fg].gather(1, gt_classes[fg].long().view(-1, 1)).squeeze(1)
+                masked_logits = semantic_logits[fg].clone()
+                masked_logits[torch.arange(masked_logits.shape[0], device=masked_logits.device), gt_classes[fg].long()] = -float("inf")
+                margin = (gt_score - masked_logits.max(dim=1).values).mean()
+                storage = get_event_storage()
+                storage.put_scalar("c5_semantic_reshaper/source_pos", float(fg.sum().item()), smoothing_hint=False)
+                storage.put_scalar("c5_semantic_reshaper/source_acc", float(acc.item()), smoothing_hint=False)
+                storage.put_scalar("c5_semantic_reshaper/source_margin", float(margin.item()), smoothing_hint=False)
+            else:
+                loss = self.c5_semantic_zero_loss()
+                get_event_storage().put_scalar("c5_semantic_reshaper/source_pos", 0.0, smoothing_hint=False)
+            return {"loss_c5_sem_src_ce": loss}
+
+        embeddings = self.region_reshaper_embeddings(batched_inputs, proposals, is_source=False)
+        _, reshaped_semantic, adapted, q = self.c5_semantic_components(embeddings)
+        semantic_logits = self.c5_semantic_logits(reshaped_semantic)
+        adapted_logits = self.c5_semantic_logits(adapted)
+        self.c5_semantic_observe(reshaped_semantic, adapted, embeddings, q, "c5_semantic_reshaper/target")
+        loss = self.c5_semantic_target_mil_loss(
+            semantic_logits,
+            proposals,
+            batched_inputs,
+            "c5_semantic_reshaper",
+        )
+        if self.c5_semantic_reshaper_adapted_loss_weight > 0:
+            loss = loss + self.c5_semantic_reshaper_adapted_loss_weight * self.c5_semantic_target_mil_loss(
+                adapted_logits,
+                proposals,
+                batched_inputs,
+                "c5_semantic_reshaper_adapted",
+            )
+        return {"loss_c5_sem_tgt_mil": loss * self.c5_semantic_reshaper_target_mil_loss_weight}
+
+    def c4_semantic_zero_loss(self):
+        if not self.c4_semantic_reshaper_enabled:
+            return self.pixel_mean.sum() * 0.0
+        zero = self.c4_semantic_gamma.sum() * 0.0
+        for module in [
+            self.c4_semantic_projector,
+            self.c4_semantic_reshaper,
+            self.c4_semantic_adapter,
+        ]:
+            zero = zero + sum(p.sum() for p in module.parameters()) * 0.0
+        return zero
+
+    def c4_semantic_feature(self, res4: torch.Tensor, proposals: List[Instances]) -> torch.Tensor:
+        if not self.c4_semantic_reshaper_enabled or sum(len(p) for p in proposals) == 0:
+            return res4
+        boxes = [p.proposal_boxes for p in proposals]
+        roi = self.c4_semantic_pooler([res4], boxes)
+        roi_vec = roi.mean(dim=[2, 3])
+        semantic = self.c4_semantic_projector(roi_vec)
+        reshaped = self.c4_semantic_reshaper(semantic)
+        q = self.c5_semantic_certainty(reshaped).detach().flatten()
+        q_map = self.scatter_region_quality_to_feature(q, proposals, res4.shape[-2:], stride=16.0)
+        q_map = q_map.to(dtype=res4.dtype)
+        gamma = self.c4_semantic_gamma.to(dtype=res4.dtype)
+        adapted = res4 + gamma * q_map * self.c4_semantic_adapter(res4)
+        self.c4_semantic_last = {
+            "semantic": semantic,
+            "reshaped": reshaped,
+            "q": q,
+            "q_map": q_map,
+        }
+        return adapted
+
+    def c4_semantic_embeddings(self, batched_inputs, proposals, is_source: bool):
+        images = self.preprocess_image(batched_inputs)
+        features = self.recognition_features(images, proposals, is_source=is_source)
+        proposal_boxes = [x.proposal_boxes for x in proposals]
+        if sum(len(x) for x in proposal_boxes) == 0:
+            return self.pixel_mean.new_zeros((0, self.roi_heads.box_predictor.cls_score.weight.shape[1]))
+        box_features = self.roi_heads._shared_roi_transform(
+            [features[f] for f in self.roi_heads.in_features],
+            proposal_boxes,
+            self.backbone.layer4,
+        )
+        if self.use_clip_attpool:
+            embeddings = self.backbone.attnpool(box_features)
+        else:
+            embeddings = box_features.mean(dim=[2, 3])
+        return self.maybe_apply_active_region_reshaper(embeddings)
+
+    def c4_semantic_target_mil_loss(self, logits, proposals, batched_inputs, prefix):
+        labels = self.region_reshaper_image_labels(batched_inputs)
+        counts = [len(p) for p in proposals]
+        per_image_logits = logits.split(counts, dim=0)
+        losses = []
+        positive_scores = []
+        negative_scores = []
+        for img_logits, img_labels in zip(per_image_logits, labels):
+            if img_logits.numel() == 0:
+                image_logits = img_labels.new_zeros(img_labels.shape)
+            else:
+                k = min(max(int(self.c4_semantic_reshaper_target_topk), 1), img_logits.shape[0])
+                image_logits = img_logits.topk(k, dim=0).values.mean(dim=0)
+            losses.append(F.binary_cross_entropy_with_logits(image_logits, img_labels, reduction="mean"))
+            if img_labels.sum() > 0:
+                positive_scores.append(image_logits[img_labels > 0].detach().sigmoid().mean())
+            if (img_labels == 0).any():
+                negative_scores.append(image_logits[img_labels == 0].detach().sigmoid().mean())
+        storage = get_event_storage()
+        storage.put_scalar(
+            f"{prefix}/target_labels_per_image",
+            float(torch.stack([x.sum() for x in labels]).mean().item()) if labels else 0.0,
+            smoothing_hint=False,
+        )
+        if positive_scores:
+            storage.put_scalar(f"{prefix}/target_pos_prob", float(torch.stack(positive_scores).mean().item()), smoothing_hint=False)
+        if negative_scores:
+            storage.put_scalar(f"{prefix}/target_neg_prob", float(torch.stack(negative_scores).mean().item()), smoothing_hint=False)
+        if not losses:
+            return self.c4_semantic_zero_loss()
+        return torch.stack(losses).mean()
+
+    def c4_semantic_observe(self, prefix):
+        storage = get_event_storage()
+        q = self.c4_semantic_last.get("q")
+        q_map = self.c4_semantic_last.get("q_map")
+        storage.put_scalar(f"{prefix}/gamma", float(self.c4_semantic_gamma.detach().item()), smoothing_hint=False)
+        if q is not None and q.numel():
+            storage.put_scalar(f"{prefix}/q_mean", float(q.mean().item()), smoothing_hint=False)
+            storage.put_scalar(f"{prefix}/q_max", float(q.max().item()), smoothing_hint=False)
+        if q_map is not None and q_map.numel():
+            storage.put_scalar(f"{prefix}/q_map_mean", float(q_map.mean().item()), smoothing_hint=False)
+            storage.put_scalar(f"{prefix}/q_map_nonzero", float((q_map > 0).float().mean().item()), smoothing_hint=False)
+
+    def c4_semantic_reshaper_stage_a_losses(self, batched_inputs, is_source: bool):
+        if not self.c4_semantic_reshaper_enabled:
+            raise ValueError(
+                "C4_SEMANTIC_RESHAPER.STAGE_A_ONLY requires C4_SEMANTIC_RESHAPER.ENABLED=True."
+            )
+        proposals = self.normal_region_proposals(batched_inputs)
+        if is_source:
+            if "instances" not in batched_inputs[0]:
+                return {"loss_c4_sem_src_ce": self.c4_semantic_zero_loss()}
+            gt_instances = [x["instances"].to(self.device) for x in batched_inputs]
+            with torch.no_grad():
+                proposals = self.roi_heads.label_and_sample_proposals(proposals, gt_instances)
+            embeddings = self.c4_semantic_embeddings(batched_inputs, proposals, is_source=True)
+            final_logits = self.c5_semantic_logits(embeddings)
+            aux_logits = self.c5_semantic_logits(self.c4_semantic_last["reshaped"])
+            gt_classes = torch.cat([p.gt_classes for p in proposals], dim=0) if proposals else final_logits.new_zeros((0,), dtype=torch.long)
+            fg = (gt_classes >= 0) & (gt_classes < self.roi_heads.num_classes)
+            self.c4_semantic_observe("c4_semantic_reshaper/source")
+            if fg.any():
+                src_loss = F.cross_entropy(final_logits[fg], gt_classes[fg].long())
+                src_loss = src_loss + self.c4_semantic_reshaper_semantic_aux_loss_weight * F.cross_entropy(
+                    aux_logits[fg],
+                    gt_classes[fg].long(),
+                )
+                loss = src_loss * self.c4_semantic_reshaper_source_loss_weight
+                pred = final_logits[fg].argmax(dim=1)
+                acc = (pred == gt_classes[fg]).float().mean()
+                gt_score = final_logits[fg].gather(1, gt_classes[fg].long().view(-1, 1)).squeeze(1)
+                masked_logits = final_logits[fg].clone()
+                masked_logits[torch.arange(masked_logits.shape[0], device=masked_logits.device), gt_classes[fg].long()] = -float("inf")
+                margin = (gt_score - masked_logits.max(dim=1).values).mean()
+                storage = get_event_storage()
+                storage.put_scalar("c4_semantic_reshaper/source_pos", float(fg.sum().item()), smoothing_hint=False)
+                storage.put_scalar("c4_semantic_reshaper/source_acc", float(acc.item()), smoothing_hint=False)
+                storage.put_scalar("c4_semantic_reshaper/source_margin", float(margin.item()), smoothing_hint=False)
+            else:
+                loss = self.c4_semantic_zero_loss()
+                get_event_storage().put_scalar("c4_semantic_reshaper/source_pos", 0.0, smoothing_hint=False)
+            return {"loss_c4_sem_src_ce": loss}
+
+        embeddings = self.c4_semantic_embeddings(batched_inputs, proposals, is_source=False)
+        final_logits = self.c5_semantic_logits(embeddings)
+        aux_logits = self.c5_semantic_logits(self.c4_semantic_last["reshaped"])
+        self.c4_semantic_observe("c4_semantic_reshaper/target")
+        loss = self.c4_semantic_target_mil_loss(final_logits, proposals, batched_inputs, "c4_semantic_reshaper")
+        loss = loss + self.c4_semantic_reshaper_semantic_aux_loss_weight * self.c4_semantic_target_mil_loss(
+            aux_logits,
+            proposals,
+            batched_inputs,
+            "c4_semantic_reshaper_aux",
+        )
+        return {"loss_c4_sem_tgt_mil": loss * self.c4_semantic_reshaper_target_mil_loss_weight}
+
+    def normal_region_proposals(self, batched_inputs: List[Dict[str, torch.Tensor]]):
+        with torch.no_grad():
+            if self.clip_crop_region_type == "GT":
+                proposals = []
+                for b_input in batched_inputs:
+                    this_gt = copy.deepcopy(b_input["instances"])
+                    gt_boxes = this_gt._fields["gt_boxes"].to(self.device)
+                    this_gt._fields = {
+                        "proposal_boxes": gt_boxes,
+                        "objectness_logits": torch.ones(gt_boxes.tensor.size(0), device=self.device),
+                    }
+                    proposals.append(this_gt)
+                return proposals
+            if self.clip_crop_region_type != "RPN":
+                raise ValueError("Region reshaper Stage A currently expects RPN or GT proposals.")
+            if self.offline_backbone.training or self.offline_proposal_generator.training:
+                self.offline_backbone.eval()
+                self.offline_proposal_generator.eval()
+            images = self.offline_preprocess_image(batched_inputs)
+            features = self.offline_backbone(images.tensor)
+            proposals, _ = self.offline_proposal_generator(images, features, None)
+            return proposals
+
+    def region_reshaper_embeddings(self, batched_inputs, proposals, is_source: bool):
+        with torch.no_grad():
+            images = self.preprocess_image(batched_inputs)
+            features = self.recognition_features(images, proposals, is_source=is_source)
+            proposal_boxes = [x.proposal_boxes for x in proposals]
+            if sum(len(x) for x in proposal_boxes) == 0:
+                return self.pixel_mean.new_zeros((0, self.roi_heads.box_predictor.cls_score.weight.shape[1]))
+            if self.use_clip_c4:
+                box_features = self.roi_heads._shared_roi_transform(
+                    [features[f] for f in self.roi_heads.in_features],
+                    proposal_boxes,
+                    self.backbone.layer4,
+                )
+                if self.use_clip_attpool:
+                    return self.maybe_apply_active_region_reshaper(self.backbone.attnpool(box_features))
+                return self.maybe_apply_active_region_reshaper(box_features.mean(dim=[2, 3]))
+            if self.use_clip_attpool:
+                box_features = self.roi_heads._shared_roi_transform(
+                    [features[f] for f in self.roi_heads.in_features],
+                    proposal_boxes,
+                    None,
+                )
+                return self.maybe_apply_active_region_reshaper(self.backbone.bottom_up.attnpool(box_features))
+            box_features = self.roi_heads._shared_roi_transform(
+                [features[f] for f in self.roi_heads.in_features],
+                proposal_boxes,
+                None,
+            )
+            return self.maybe_apply_active_region_reshaper(box_features.mean(dim=[2, 3]))
+
+    def region_reshaper_logits(self, embeddings: torch.Tensor) -> torch.Tensor:
+        if embeddings.numel() == 0:
+            return embeddings.new_zeros((0, self.roi_heads.num_classes))
+        reshaped = self.region_reshaper(embeddings)
+        text_weight = self.roi_heads.box_predictor.cls_score.weight[: self.roi_heads.num_classes]
+        logits = reshaped @ F.normalize(text_weight, dim=1).t()
+        temperature = getattr(self.roi_heads.box_predictor, "temperature", 1.0)
+        return logits / temperature
+
+    def region_reshaper_image_labels(self, batched_inputs):
+        labels = []
+        num_classes = self.roi_heads.num_classes
+        for sample in batched_inputs:
+            y = self.pixel_mean.new_zeros((num_classes,))
+            if "instances" in sample:
+                gt_classes = sample["instances"].gt_classes.to(self.device)
+                keep = (gt_classes >= 0) & (gt_classes < num_classes)
+                if keep.any():
+                    y[gt_classes[keep].long()] = 1.0
+            labels.append(y)
+        return labels
+
+    def region_reshaper_target_mil_loss(self, logits, proposals, batched_inputs):
+        labels = self.region_reshaper_image_labels(batched_inputs)
+        counts = [len(p) for p in proposals]
+        per_image_logits = logits.split(counts, dim=0)
+        losses = []
+        positive_scores = []
+        negative_scores = []
+        for img_logits, img_labels in zip(per_image_logits, labels):
+            if img_logits.numel() == 0:
+                image_logits = img_labels.new_zeros(img_labels.shape)
+            else:
+                k = min(max(int(self.region_reshaper_target_topk), 1), img_logits.shape[0])
+                image_logits = img_logits.topk(k, dim=0).values.mean(dim=0)
+            losses.append(F.binary_cross_entropy_with_logits(image_logits, img_labels, reduction="mean"))
+            if img_labels.sum() > 0:
+                positive_scores.append(image_logits[img_labels > 0].detach().sigmoid().mean())
+            if (img_labels == 0).any():
+                negative_scores.append(image_logits[img_labels == 0].detach().sigmoid().mean())
+        storage = get_event_storage()
+        storage.put_scalar(
+            "region_reshaper/target_labels_per_image",
+            float(torch.stack([x.sum() for x in labels]).mean().item()) if labels else 0.0,
+            smoothing_hint=False,
+        )
+        if positive_scores:
+            storage.put_scalar(
+                "region_reshaper/target_pos_prob",
+                float(torch.stack(positive_scores).mean().item()),
+                smoothing_hint=False,
+            )
+        if negative_scores:
+            storage.put_scalar(
+                "region_reshaper/target_neg_prob",
+                float(torch.stack(negative_scores).mean().item()),
+                smoothing_hint=False,
+            )
+        if not losses:
+            return self.region_reshaper_zero_loss()
+        return torch.stack(losses).mean()
+
+    def region_reshaper_stage_a_losses(self, batched_inputs, is_source: bool):
+        if self.region_reshaper is None:
+            raise ValueError("REGION_RESHAPER.STAGE_A_ONLY requires REGION_RESHAPER.ENABLED=True.")
+        proposals = self.normal_region_proposals(batched_inputs)
+        if is_source:
+            if "instances" not in batched_inputs[0]:
+                return {"loss_reshaper_src_ce": self.region_reshaper_zero_loss()}
+            gt_instances = [x["instances"].to(self.device) for x in batched_inputs]
+            with torch.no_grad():
+                proposals = self.roi_heads.label_and_sample_proposals(proposals, gt_instances)
+            embeddings = self.region_reshaper_embeddings(batched_inputs, proposals, is_source=True)
+            logits = self.region_reshaper_logits(embeddings)
+            gt_classes = torch.cat([p.gt_classes for p in proposals], dim=0) if proposals else logits.new_zeros((0,), dtype=torch.long)
+            fg = (gt_classes >= 0) & (gt_classes < self.roi_heads.num_classes)
+            if fg.any():
+                loss = F.cross_entropy(logits[fg], gt_classes[fg].long()) * self.region_reshaper_source_loss_weight
+                pred = logits[fg].argmax(dim=1)
+                acc = (pred == gt_classes[fg]).float().mean()
+                gt_score = logits[fg].gather(1, gt_classes[fg].long().view(-1, 1)).squeeze(1)
+                masked_logits = logits[fg].clone()
+                masked_logits[torch.arange(masked_logits.shape[0], device=masked_logits.device), gt_classes[fg].long()] = -float("inf")
+                margin = (gt_score - masked_logits.max(dim=1).values).mean()
+                storage = get_event_storage()
+                storage.put_scalar("region_reshaper/source_pos", float(fg.sum().item()), smoothing_hint=False)
+                storage.put_scalar("region_reshaper/source_acc", float(acc.item()), smoothing_hint=False)
+                storage.put_scalar("region_reshaper/source_margin", float(margin.item()), smoothing_hint=False)
+            else:
+                loss = self.region_reshaper_zero_loss()
+                get_event_storage().put_scalar("region_reshaper/source_pos", 0.0, smoothing_hint=False)
+            return {"loss_reshaper_src_ce": loss}
+
+        embeddings = self.region_reshaper_embeddings(batched_inputs, proposals, is_source=False)
+        logits = self.region_reshaper_logits(embeddings)
+        loss = self.region_reshaper_target_mil_loss(logits, proposals, batched_inputs)
+        return {"loss_reshaper_tgt_mil": loss * self.region_reshaper_target_mil_loss_weight}
+
+    def offline_rpn_teacher_loss(self, student_inputs, teacher_inputs, teacher_model):
+        if (
+            not self.offline_rpn_teacher_enabled
+            or self.clip_crop_region_type != "RPN"
+            or self.offline_backbone is None
+            or self.offline_proposal_generator is None
+            or teacher_model is None
+        ):
+            return {}
+
+        with torch.no_grad():
+            pseudo_instances = self.offline_rpn_teacher_pseudo_instances(teacher_inputs, teacher_model)
+
+        pseudo_counts = [len(x.gt_boxes) for x in pseudo_instances]
+        storage = get_event_storage()
+        storage.put_scalar("offline_rpn_teacher/pseudo_boxes", float(sum(pseudo_counts)) / max(len(pseudo_counts), 1))
+        if sum(pseudo_counts) == 0:
+            zero = next(self.offline_proposal_generator.parameters()).sum() * 0.0
+            return {"loss_offline_rpn_pseudo": zero}
+
+        self.offline_backbone.train()
+        self.offline_proposal_generator.train()
+        student_images = self.offline_preprocess_image(student_inputs)
+        student_features = self.offline_backbone(student_images.tensor)
+        _, rpn_losses = self.offline_proposal_generator(student_images, student_features, pseudo_instances)
+        return {
+            "loss_offline_rpn_pseudo": sum(rpn_losses.values()) * self.offline_rpn_teacher_loss_weight
+        }
+
+    def offline_rpn_teacher_pseudo_instances(self, batched_inputs, teacher_model):
+        teacher_model.eval()
+        teacher_images = teacher_model.offline_preprocess_image(batched_inputs)
+        teacher_features = teacher_model.offline_backbone(teacher_images.tensor)
+        proposals, _ = teacher_model.offline_proposal_generator(teacher_images, teacher_features, None)
+
+        candidate_boxes = []
+        candidate_classes = []
+        candidate_obj_scores = []
+        for proposal in proposals:
+            objectness = proposal.objectness_logits.sigmoid()
+            keep = objectness >= self.offline_rpn_teacher_obj_threshold
+            if keep.sum().item() == 0:
+                candidate_boxes.append(Boxes(proposal.proposal_boxes.tensor.new_zeros((0, 4))))
+                candidate_classes.append(objectness.new_zeros((0,), dtype=torch.long))
+                candidate_obj_scores.append(objectness.new_zeros((0,)))
+                continue
+            scores = objectness[keep]
+            boxes = proposal.proposal_boxes[keep]
+            order = torch.argsort(scores, descending=True)[: self.offline_rpn_teacher_max_pseudo_boxes]
+            candidate_boxes.append(boxes[order])
+            candidate_classes.append(scores.new_zeros((len(order),), dtype=torch.long))
+            candidate_obj_scores.append(scores[order])
+
+        semantic_scores, semantic_classes = self.regionclip_semantic_scores_for_boxes(
+            batched_inputs,
+            candidate_boxes,
+        )
+
+        pseudo_instances = []
+        kept_counts = []
+        semantic_means = []
+        objectness_means = []
+        for sample, boxes, obj_scores, sem_scores, sem_classes in zip(
+            batched_inputs,
+            candidate_boxes,
+            candidate_obj_scores,
+            semantic_scores,
+            semantic_classes,
+        ):
+            if self.offline_rpn_teacher_semantic_filter and len(sem_scores):
+                keep = sem_scores >= self.offline_rpn_teacher_semantic_threshold
+            else:
+                keep = torch.ones((len(boxes),), dtype=torch.bool, device=obj_scores.device)
+            if keep.sum().item() > self.offline_rpn_teacher_max_pseudo_boxes:
+                combined = obj_scores[keep] + sem_scores[keep]
+                selected = torch.argsort(combined, descending=True)[: self.offline_rpn_teacher_max_pseudo_boxes]
+                keep_idx = torch.nonzero(keep, as_tuple=False).flatten()[selected]
+            else:
+                keep_idx = torch.nonzero(keep, as_tuple=False).flatten()
+
+            inst = Instances(sample["instances"].image_size if "instances" in sample else sample["image"].shape[-2:])
+            inst.gt_boxes = boxes[keep_idx]
+            inst.gt_classes = sem_classes[keep_idx] if len(sem_classes) else obj_scores.new_zeros((0,), dtype=torch.long)
+            pseudo_instances.append(inst)
+            kept_counts.append(float(len(keep_idx)))
+            if len(keep_idx):
+                semantic_means.append(float(sem_scores[keep_idx].mean().item()))
+                objectness_means.append(float(obj_scores[keep_idx].mean().item()))
+
+        storage = get_event_storage()
+        storage.put_scalar("offline_rpn_teacher/after_obj_filter", float(sum(len(x) for x in candidate_boxes)) / max(len(candidate_boxes), 1))
+        storage.put_scalar("offline_rpn_teacher/after_sem_filter", sum(kept_counts) / max(len(kept_counts), 1))
+        if semantic_means:
+            storage.put_scalar("offline_rpn_teacher/semantic_score", sum(semantic_means) / len(semantic_means))
+        if objectness_means:
+            storage.put_scalar("offline_rpn_teacher/objectness_score", sum(objectness_means) / len(objectness_means))
+        return pseudo_instances
+
+    def regionclip_semantic_scores_for_boxes(self, batched_inputs, boxes):
+        if sum(len(x) for x in boxes) == 0:
+            return (
+                [self.pixel_mean.new_zeros((0,)) for _ in boxes],
+                [torch.zeros((0,), dtype=torch.long, device=self.device) for _ in boxes],
+            )
+        images = self.preprocess_image(batched_inputs)
+        proposals = []
+        for sample, per_image_boxes in zip(batched_inputs, boxes):
+            proposal = Instances(sample["instances"].image_size if "instances" in sample else sample["image"].shape[-2:])
+            proposal.proposal_boxes = per_image_boxes
+            proposal.objectness_logits = per_image_boxes.tensor.new_ones((len(per_image_boxes),))
+            proposals.append(proposal)
+        features = self.recognition_features(images, proposals, is_source=False)
+        box_features = self.roi_heads._shared_roi_transform(
+            [features[f] for f in self.roi_heads.in_features],
+            boxes,
+            self.backbone.layer4,
+        )
+        if self.use_clip_attpool:
+            emb = self.backbone.attnpool(box_features)
+        else:
+            emb = box_features.mean(dim=[2, 3])
+        text_weight = self.roi_heads.box_predictor.cls_score.weight[: self.roi_heads.num_classes]
+        logits = F.normalize(emb, dim=1) @ F.normalize(text_weight, dim=1).t()
+        logits = logits / self.c3_adapter_quality_logit_temperature
+        probs = F.softmax(logits, dim=1)
+        scores, classes = probs.max(dim=1)
+
+        split_scores = []
+        split_classes = []
+        start = 0
+        for per_image_boxes in boxes:
+            end = start + len(per_image_boxes)
+            split_scores.append(scores[start:end])
+            split_classes.append(classes[start:end])
+            start = end
+        return split_scores, split_classes
 
     def image_level_predictions(self, batched_inputs: List[Dict[str, torch.Tensor]], is_source=False):
         with torch.no_grad():
@@ -538,14 +1527,24 @@ class CLIPFastRCNN(nn.Module):
                 res5=self.backbone.layer4,
                 attnpool=self.backbone.attnpool,
                 c5_adapter_fn=self.c5_adapter_roi_features if self.c5_adapter_apply_residual else None,
+                region_reshaper_fn=self.active_region_reshaper_fn(),
                 is_source=is_source,
             )
         elif self.use_clip_attpool:
             logits = self.roi_heads.image_level_logits(
-                features, proposals, attnpool=self.backbone.bottom_up.attnpool, is_source=is_source
+                features,
+                proposals,
+                attnpool=self.backbone.bottom_up.attnpool,
+                region_reshaper_fn=self.active_region_reshaper_fn(),
+                is_source=is_source,
             )
         else:
-            logits = self.roi_heads.image_level_logits(features, proposals, is_source=is_source)
+            logits = self.roi_heads.image_level_logits(
+                features,
+                proposals,
+                region_reshaper_fn=self.active_region_reshaper_fn(),
+                is_source=is_source,
+            )
 
         objectness = [p.objectness_logits for p in proposals]
         return [self.h2fa_image_level_aggregate(x, o) for x, o in zip(logits, objectness)]
@@ -569,6 +1568,20 @@ class CLIPFastRCNN(nn.Module):
         proposals: List[Instances],
         is_source: bool = False,
     ) -> Dict[str, torch.Tensor]:
+        self.c3_adapter_shared_features = {}
+        self.c3_adapter_orth_losses = {}
+        self.c4_semantic_last = {}
+        if self.c4_semantic_reshaper_enabled:
+            x = images.tensor.type(self.backbone.conv1.weight.dtype)
+            x = self.backbone.relu(self.backbone.bn1(self.backbone.conv1(x)))
+            x = self.backbone.relu(self.backbone.bn2(self.backbone.conv2(x)))
+            x = self.backbone.relu(self.backbone.bn3(self.backbone.conv3(x)))
+            x = self.backbone.avgpool(x)
+            x = self.backbone.layer1(x)
+            c3 = self.backbone.layer2(x)
+            res4 = self.backbone.layer3(c3)
+            res4 = self.c4_semantic_feature(res4, proposals)
+            return {"res3": c3, "res4": res4}
         if not self.c3_adapter_enabled:
             return self.backbone(images.tensor)
 
@@ -582,16 +1595,152 @@ class CLIPFastRCNN(nn.Module):
 
         if self.c3_adapter_apply_residual:
             quality_map = self.c3_quality_map(c3, proposals, is_source=is_source)
-            if self.c3_adapter_detach_quality_map:
+            if self.c3_adapter_detach_quality_map or self.use_region_loss_quality():
                 quality_map = quality_map.detach()
-            c3 = c3 + self.c3_adapter_residual_scale * quality_map * self.c3_adapter(c3)
+            if self.c3_adapter_domain_decoupled:
+                c3, c3_shared = self.domain_decoupled_adapter_feature(
+                    c3,
+                    quality_map,
+                    self.c3_shared_adapter,
+                    self.domain_specific_adapter(self.c3_source_adapter, self.c3_target_adapter, is_source),
+                    self.c3_adapter_residual_scale,
+                    "c3",
+                )
+                self.c3_adapter_shared_features["res3"] = c3_shared
+            else:
+                c3 = c3 + self.c3_adapter_residual_scale * quality_map * self.c3_adapter(c3)
+                self.c3_adapter_shared_features["res3"] = c3
         res4 = self.backbone.layer3(c3)
         if self.c4_adapter_apply_residual:
             quality_map = self.c4_quality_map(res4, proposals, is_source=is_source)
-            if self.c3_adapter_detach_quality_map:
+            if self.c3_adapter_detach_quality_map or self.use_region_loss_quality():
                 quality_map = quality_map.detach()
-            res4 = res4 + self.c4_adapter_residual_scale * quality_map * self.c4_adapter(res4)
+            if self.c3_adapter_domain_decoupled:
+                res4, res4_shared = self.domain_decoupled_adapter_feature(
+                    res4,
+                    quality_map,
+                    self.c4_shared_adapter,
+                    self.domain_specific_adapter(self.c4_source_adapter, self.c4_target_adapter, is_source),
+                    self.c4_adapter_residual_scale,
+                    "c4",
+                )
+                self.c3_adapter_shared_features["res4"] = res4_shared
+            else:
+                res4 = res4 + self.c4_adapter_residual_scale * quality_map * self.c4_adapter(res4)
+                self.c3_adapter_shared_features["res4"] = res4
         return {"res3": c3, "res4": res4}
+
+    def use_region_loss_quality(self) -> bool:
+        return self.c3_adapter_enabled and self.c3_adapter_quality_use == "region_loss"
+
+    def domain_specific_adapter(self, source_adapter, target_adapter, is_source: bool):
+        if self.training:
+            return source_adapter if is_source else target_adapter
+        return source_adapter if self.c3_adapter_inference_domain == "source" else target_adapter
+
+    def domain_decoupled_adapter_feature(
+        self,
+        feature: torch.Tensor,
+        quality_map: torch.Tensor,
+        shared_adapter: nn.Module,
+        domain_adapter: nn.Module,
+        layer_scale: float,
+        prefix: str,
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        shared_residual = shared_adapter(feature)
+        domain_residual = domain_adapter(feature)
+        quality_map = quality_map.to(dtype=feature.dtype)
+        shared_feature = feature + layer_scale * self.c3_adapter_domain_shared_scale * quality_map * shared_residual
+        output_feature = shared_feature + layer_scale * self.c3_adapter_domain_specific_scale * quality_map * domain_residual
+        self.observe_domain_decoupled_adapter(
+            prefix,
+            feature,
+            quality_map,
+            shared_residual,
+            domain_residual,
+            shared_feature,
+            output_feature,
+        )
+        self.c3_adapter_orth_losses[prefix] = self.orthogonality_loss(
+            shared_residual,
+            domain_residual,
+            quality_map,
+            prefix,
+        )
+        return output_feature, shared_feature
+
+    def orthogonality_loss(
+        self,
+        shared_residual: torch.Tensor,
+        domain_residual: torch.Tensor,
+        quality_map: torch.Tensor,
+        prefix: str,
+    ) -> torch.Tensor:
+        if self.c3_adapter_orth_loss_weight <= 0:
+            return shared_residual.sum() * 0.0
+        shared_norm = F.normalize(shared_residual, dim=1)
+        domain_norm = F.normalize(domain_residual, dim=1)
+        cos2 = (shared_norm * domain_norm).sum(dim=1, keepdim=True).pow(2)
+        weights = quality_map.to(dtype=cos2.dtype)
+        while weights.dim() < cos2.dim():
+            weights = weights.unsqueeze(-1)
+        loss = (cos2 * weights).sum() / weights.sum().clamp_min(1.0)
+        if self.training and self.c3_adapter_observe_period > 0:
+            storage = get_event_storage()
+            if storage.iter % self.c3_adapter_observe_period == 0:
+                storage.put_scalar(f"{prefix}_adapter/orth_loss_raw", loss.item(), smoothing_hint=False)
+        return loss
+
+    def observe_domain_decoupled_adapter(
+        self,
+        prefix: str,
+        feature: torch.Tensor,
+        quality_map: torch.Tensor,
+        shared_residual: torch.Tensor,
+        domain_residual: torch.Tensor,
+        shared_feature: torch.Tensor,
+        output_feature: torch.Tensor,
+    ):
+        if not self.training or self.c3_adapter_observe_period <= 0:
+            return
+        try:
+            storage = get_event_storage()
+        except AssertionError:
+            return
+        if storage.iter % self.c3_adapter_observe_period != 0:
+            return
+
+        with torch.no_grad():
+            eps = 1e-6
+            input_vec = feature.detach().float().flatten(1)
+            shared_vec = shared_residual.detach().float().flatten(1)
+            domain_vec = domain_residual.detach().float().flatten(1)
+            shared_delta_vec = (shared_feature - feature).detach().float().flatten(1)
+            domain_delta_vec = (output_feature - shared_feature).detach().float().flatten(1)
+
+            input_norm = input_vec.norm(dim=1).mean().clamp_min(eps)
+            shared_res_norm = shared_vec.norm(dim=1).mean()
+            domain_res_norm = domain_vec.norm(dim=1).mean()
+            shared_delta_norm = shared_delta_vec.norm(dim=1).mean()
+            domain_delta_norm = domain_delta_vec.norm(dim=1).mean()
+            cos = F.cosine_similarity(shared_vec, domain_vec, dim=1, eps=eps)
+            q = quality_map.detach().float()
+
+            metric_prefix = f"domain_decoupled/{prefix}"
+            storage.put_scalar(f"{metric_prefix}/input_norm", input_norm.item(), smoothing_hint=False)
+            storage.put_scalar(f"{metric_prefix}/shared_res_norm", shared_res_norm.item(), smoothing_hint=False)
+            storage.put_scalar(f"{metric_prefix}/domain_res_norm", domain_res_norm.item(), smoothing_hint=False)
+            storage.put_scalar(f"{metric_prefix}/shared_delta_over_input", (shared_delta_norm / input_norm).item(), smoothing_hint=False)
+            storage.put_scalar(f"{metric_prefix}/domain_delta_over_input", (domain_delta_norm / input_norm).item(), smoothing_hint=False)
+            storage.put_scalar(
+                f"{metric_prefix}/domain_to_shared_delta_ratio",
+                (domain_delta_norm / shared_delta_norm.clamp_min(eps)).item(),
+                smoothing_hint=False,
+            )
+            storage.put_scalar(f"{metric_prefix}/res_cos_mean", cos.mean().item(), smoothing_hint=False)
+            storage.put_scalar(f"{metric_prefix}/res_abs_cos_mean", cos.abs().mean().item(), smoothing_hint=False)
+            storage.put_scalar(f"{metric_prefix}/q_mean", q.mean().item(), smoothing_hint=False)
+            storage.put_scalar(f"{metric_prefix}/q_nonzero_frac", (q > 0).float().mean().item(), smoothing_hint=False)
 
     def c3_supervised_projection_loss(
         self,
@@ -657,6 +1806,8 @@ class CLIPFastRCNN(nn.Module):
         proposals: List[Instances],
         is_source: bool = False,
     ) -> torch.Tensor:
+        if self.use_region_loss_quality():
+            return c3.new_ones((c3.shape[0], 1, c3.shape[2], c3.shape[3]))
         if len(proposals) == 0:
             return c3.new_zeros((c3.shape[0], 1, c3.shape[2], c3.shape[3]))
         boxes = [p.proposal_boxes for p in proposals]
@@ -666,12 +1817,7 @@ class CLIPFastRCNN(nn.Module):
             for p in proposals
         ]
         eff_aug = self.c3_effective_classes(c3, aug_boxes)
-        num_classes = self.roi_heads.num_classes
-        certainty = (float(num_classes) - eff) / max(float(num_classes - 1), 1.0)
-        stability = torch.exp(-(eff_aug - eff).abs() / self.c3_adapter_quality_tau)
-        quality = certainty * stability
-        if self.c3_adapter_clamp_quality:
-            quality = quality.clamp(0.0, 1.0)
+        quality = self.adapter_region_quality(eff, eff_aug)
 
         quality_maps = self.scatter_region_quality_to_c3(quality, proposals, c3.shape[-2:])
         self.observe_c3_quality(eff, eff_aug, quality, quality_maps, is_source=is_source)
@@ -683,6 +1829,8 @@ class CLIPFastRCNN(nn.Module):
         proposals: List[Instances],
         is_source: bool = False,
     ) -> torch.Tensor:
+        if self.use_region_loss_quality():
+            return c4.new_ones((c4.shape[0], 1, c4.shape[2], c4.shape[3]))
         if len(proposals) == 0:
             return c4.new_zeros((c4.shape[0], 1, c4.shape[2], c4.shape[3]))
         boxes = [p.proposal_boxes for p in proposals]
@@ -692,12 +1840,7 @@ class CLIPFastRCNN(nn.Module):
             for p in proposals
         ]
         eff_aug = self.c4_effective_classes(c4, aug_boxes)
-        num_classes = self.roi_heads.num_classes
-        certainty = (float(num_classes) - eff) / max(float(num_classes - 1), 1.0)
-        stability = torch.exp(-(eff_aug - eff).abs() / self.c3_adapter_quality_tau)
-        quality = certainty * stability
-        if self.c3_adapter_clamp_quality:
-            quality = quality.clamp(0.0, 1.0)
+        quality = self.adapter_region_quality(eff, eff_aug)
 
         quality_maps = self.scatter_region_quality_to_feature(quality, proposals, c4.shape[-2:], stride=16.0)
         self.observe_quality("c4_adapter", eff, eff_aug, quality, quality_maps, is_source=is_source)
@@ -738,6 +1881,19 @@ class CLIPFastRCNN(nn.Module):
     ) -> torch.Tensor:
         if box_features.numel() == 0:
             return box_features
+        if self.use_region_loss_quality():
+            quality = box_features.new_ones((box_features.shape[0], 1, 1, 1))
+            if self.c3_adapter_domain_decoupled:
+                output_features, shared_features = self.domain_decoupled_adapter_feature(
+                    box_features,
+                    quality,
+                    self.c5_shared_adapter,
+                    self.domain_specific_adapter(self.c5_source_adapter, self.c5_target_adapter, is_source),
+                    self.c5_adapter_residual_scale,
+                    "c5",
+                )
+                return output_features, shared_features
+            return box_features + self.c5_adapter_residual_scale * self.c5_adapter(box_features)
         if self.c3_adapter_detach_quality_map:
             with torch.no_grad():
                 quality, eff, eff_aug = self.c5_region_quality(features, proposals, box_features)
@@ -746,7 +1902,72 @@ class CLIPFastRCNN(nn.Module):
             quality, eff, eff_aug = self.c5_region_quality(features, proposals, box_features)
         self.observe_region_quality("c5_adapter", eff, eff_aug, quality, is_source=is_source)
         quality = quality.reshape(-1, 1, 1, 1).to(dtype=box_features.dtype)
+        if self.c3_adapter_domain_decoupled:
+            output_features, shared_features = self.domain_decoupled_adapter_feature(
+                box_features,
+                quality,
+                self.c5_shared_adapter,
+                self.domain_specific_adapter(self.c5_source_adapter, self.c5_target_adapter, is_source),
+                self.c5_adapter_residual_scale,
+                "c5",
+            )
+            return output_features, shared_features
         return box_features + self.c5_adapter_residual_scale * quality * self.c5_adapter(box_features)
+
+    def region_loss_quality(
+        self,
+        features: Dict[str, torch.Tensor],
+        proposals: List[Instances],
+        box_features: torch.Tensor,
+        is_source: bool = False,
+    ) -> torch.Tensor:
+        if "res4" not in features or sum(len(p) for p in proposals) == 0:
+            return box_features.new_zeros((0,))
+        if self.c3_adapter_detach_quality_map:
+            with torch.no_grad():
+                quality, eff, eff_aug = self.c4_region_quality_chunked(features["res4"], proposals)
+            quality = quality.detach()
+        else:
+            quality, eff, eff_aug = self.c4_region_quality_chunked(features["res4"], proposals)
+        self.observe_region_quality("region_loss_quality", eff, eff_aug, quality, is_source=is_source)
+        if self.c3_adapter_region_loss_weight_scale != 1.0:
+            quality = quality * self.c3_adapter_region_loss_weight_scale
+        if quality.is_cuda:
+            torch.cuda.empty_cache()
+        return quality
+
+    def c4_region_quality_chunked(
+        self,
+        c4: torch.Tensor,
+        proposals: List[Instances],
+        chunk_size: int = 64,
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        qualities = []
+        effs = []
+        eff_augs = []
+        for image_idx, proposals_per_image in enumerate(proposals):
+            boxes_tensor = proposals_per_image.proposal_boxes.tensor
+            if boxes_tensor.numel() == 0:
+                continue
+            aug_tensor = self.jitter_boxes(
+                boxes_tensor,
+                proposals_per_image.image_size,
+                self.c3_adapter_perturb_scale,
+            )
+            c4_one = c4[image_idx: image_idx + 1]
+            for start in range(0, boxes_tensor.shape[0], chunk_size):
+                end = min(start + chunk_size, boxes_tensor.shape[0])
+                boxes = [Boxes(boxes_tensor[start:end])]
+                aug_boxes = [Boxes(aug_tensor[start:end])]
+                eff = self.c4_effective_classes(c4_one, boxes)
+                eff_aug = self.c4_effective_classes(c4_one, aug_boxes)
+                effs.append(eff)
+                eff_augs.append(eff_aug)
+                qualities.append(self.adapter_region_quality(eff, eff_aug))
+        if not qualities:
+            empty = c4.new_zeros((0,))
+            return empty, empty, empty
+        return torch.cat(qualities, dim=0), torch.cat(effs, dim=0), torch.cat(eff_augs, dim=0)
 
     def c5_region_quality(
         self,
@@ -775,13 +1996,22 @@ class CLIPFastRCNN(nn.Module):
             self.backbone.layer4,
         )
         eff_aug = self.c5_effective_classes_from_features(aug_features)
+        quality = self.adapter_region_quality(eff, eff_aug)
+        return quality, eff, eff_aug
+
+    def adapter_region_quality(self, eff: torch.Tensor, eff_aug: torch.Tensor) -> torch.Tensor:
         num_classes = self.roi_heads.num_classes
         certainty = (float(num_classes) - eff) / max(float(num_classes - 1), 1.0)
-        stability = torch.exp(-(eff_aug - eff).abs() / self.c3_adapter_quality_tau)
-        quality = certainty * stability
+        if self.c3_adapter_quality_mode == "certainty_only":
+            quality = certainty
+        elif self.c3_adapter_quality_mode == "stability_only":
+            quality = torch.exp(-(eff_aug - eff).abs() / self.c3_adapter_quality_tau)
+        else:
+            stability = torch.exp(-(eff_aug - eff).abs() / self.c3_adapter_quality_tau)
+            quality = certainty * stability
         if self.c3_adapter_clamp_quality:
             quality = quality.clamp(0.0, 1.0)
-        return quality, eff, eff_aug
+        return quality
 
     def c5_effective_classes_from_features(self, box_features: torch.Tensor) -> torch.Tensor:
         if box_features.numel() == 0:
@@ -1011,6 +2241,7 @@ class CLIPFastRCNN(nn.Module):
                     res5=self.backbone.layer4,
                     attnpool=self.backbone.attnpool,
                     c5_adapter_fn=self.c5_adapter_roi_features if self.c5_adapter_apply_residual else None,
+                    region_reshaper_fn=self.active_region_reshaper_fn(),
                 )
             else: # use mean pool
                 results, _ = self.roi_heads(
@@ -1020,12 +2251,26 @@ class CLIPFastRCNN(nn.Module):
                     None,
                     res5=self.backbone.layer4,
                     c5_adapter_fn=self.c5_adapter_roi_features if self.c5_adapter_apply_residual else None,
+                    region_reshaper_fn=self.active_region_reshaper_fn(),
                 )
         else:  # regular detector setting
             if self.use_clip_attpool: # use att_pool from CLIP to match dimension
-                results, _  = self.roi_heads(images, features, proposals, None, attnpool=self.backbone.bottom_up.attnpool)
+                results, _  = self.roi_heads(
+                    images,
+                    features,
+                    proposals,
+                    None,
+                    attnpool=self.backbone.bottom_up.attnpool,
+                    region_reshaper_fn=self.active_region_reshaper_fn(),
+                )
             else:
-                results, _  = self.roi_heads(images, features, proposals, None)
+                results, _  = self.roi_heads(
+                    images,
+                    features,
+                    proposals,
+                    None,
+                    region_reshaper_fn=self.active_region_reshaper_fn(),
+                )
         
         #visualize
         #from detectron2.utils.visualizer import Visualizer
