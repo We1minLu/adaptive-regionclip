@@ -51,6 +51,14 @@ def ramp(progress):
     return 2. / (1. + math.exp(-10. * progress)) - 1.
 
 
+def target_image_labels_allowed(config):
+    """Default to the original protocol; reject truthy strings/integers."""
+    allowed = config.get("target_image_labels_allowed", True)
+    if type(allowed) is not bool:
+        raise ValueError("target_image_labels_allowed must be a boolean")
+    return allowed
+
+
 def _native_logits(raw, classifier):
     """Exact native fixed-text path; omits unused DA/EMA prompt branches."""
     normalized = F.normalize(raw, p=2., dim=1)
@@ -109,11 +117,13 @@ class FormalVGSDA(nn.Module):
     Required paths: source_cfg, source_checkpoint, rpn_checkpoint,
     text_embeddings, source_search_checkpoint (None explicitly allows random).
     Input dictionaries contain RGB CHW image tensors at1024x2048. Source also
-    contains Instances GT; target contains only eight binary image_labels.
+    contains Instances GT. Target contains eight binary image_labels only when
+    permitted by config; UDA target records must omit that key entirely.
     """
     def __init__(self, config):
         super().__init__()
         self.config = dict(config)
+        self.target_image_labels_allowed = target_image_labels_allowed(config)
         if config.get("repo_root") and str(config["repo_root"]) not in sys.path:
             sys.path.insert(0, str(config["repo_root"]))
         from detectron2.config import get_cfg
@@ -197,6 +207,10 @@ class FormalVGSDA(nn.Module):
             "teacher": "fixed SourceB recognition backbone plus native text/background classifier; shared parameter-free ROIAlign",
             "proposal_append_GT": False, "final_scores": "native ROI probabilities only; no objectness fusion",
             "domain_gradient_scope": "traditional C3/C4; conditional search lateral3/4 and online recognition backbone",
+            "target_image_labels_allowed": self.target_image_labels_allowed,
+            "target_image_labels_used": self.target_image_labels_allowed,
+            "target_presence_filter_enabled": self.target_image_labels_allowed,
+            "source_presence_origin": "source_GT_class_presence",
             "maps": "original 15 channels, detached teacher B0 semantics and RPN geometry; no new entropy reranking"}
         self.to(torch.device(config.get("device", "cuda")))
         self.train(True)
@@ -227,7 +241,9 @@ class FormalVGSDA(nn.Module):
         return self
 
     @staticmethod
-    def _validate_inputs(inputs, source=False):
+    def _validate_inputs(inputs, source=False, target_image_labels_allowed=True):
+        if type(target_image_labels_allowed) is not bool:
+            raise ValueError("target_image_labels_allowed must be a boolean")
         if not inputs:
             raise ValueError("Each domain batch must contain at least one image")
         forbidden = {"instances", "annotations", "gt", "gt_boxes", "gt_classes", "labels", "targets"}
@@ -238,6 +254,8 @@ class FormalVGSDA(nn.Module):
                 raise ValueError("Image and original coordinate systems must agree")
             if not source and forbidden & set(record):
                 raise ValueError("Target/inference model input must not contain region annotations")
+            if not source and not target_image_labels_allowed and "image_labels" in record:
+                raise ValueError("UDA target/inference input must not contain image_labels, including None")
             if source and "instances" not in record:
                 raise ValueError("Source detection requires source Instances GT")
 
@@ -302,13 +320,19 @@ class FormalVGSDA(nn.Module):
                 sample.update(gt=targets.gt_boxes.tensor, labels=targets.gt_classes)
                 presence = torch.zeros(8, device=self.device)
                 presence[targets.gt_classes.unique()] = 1
-            else:
+            elif self.target_image_labels_allowed:
                 if "image_labels" not in record:
                     raise ValueError("Target requires explicitly permitted image-level labels")
                 presence = torch.as_tensor(record["image_labels"], device=self.device).reshape(-1)
-            if presence.shape != (8,) or not bool(((presence == 0) | (presence == 1)).all()):
+            else:
+                if "image_labels" in record:
+                    raise ValueError("UDA target input must not contain image_labels, including None")
+                # Explicit sentinel: the conditional adversary skips only the
+                # target class-presence filter, retaining every reliability rule.
+                presence = None
+            if presence is not None and (presence.shape != (8,) or not bool(((presence == 0) | (presence == 1)).all())):
                 raise ValueError("Expected eight binary image-level labels")
-            sample["image_labels"] = presence.detach()
+            sample["image_labels"] = presence.detach() if presence is not None else None
             samples.append(sample)
         return samples
 
@@ -360,7 +384,8 @@ class FormalVGSDA(nn.Module):
     def training_losses(self, source_inputs, target_inputs, progress):
         if not self.training:
             raise ValueError("training_losses requires model.train()")
-        self._validate_inputs(source_inputs, True); self._validate_inputs(target_inputs, False)
+        self._validate_inputs(source_inputs, True)
+        self._validate_inputs(target_inputs, False, self.target_image_labels_allowed)
         n = len(source_inputs); inputs = list(source_inputs) + list(target_inputs)
         images, features, base, probabilities, maps = self._bundle(inputs)
         samples = self._samples(inputs, base, probabilities, n)
@@ -403,14 +428,16 @@ class FormalVGSDA(nn.Module):
                  "conditional_domain": conditional_stats, "grl_ramp": coefficient,
                  "global_outer_weight": self.traditional_domain_weight,
                  "conditional_grl_coefficient": self.conditional_grl_max * coefficient,
-                 "target_box_GT_used": False, "teacher_fixed": True, "source_GT_appended": False}
+                 "target_box_GT_used": False, "target_image_labels_used": self.target_image_labels_allowed,
+                 "target_presence_filter_enabled": self.target_image_labels_allowed,
+                 "teacher_fixed": True, "source_GT_appended": False}
         return losses, stats
 
     @torch.no_grad()
     def predict(self, inputs, return_proposals=False):
         if self.training:
             raise ValueError("predict requires model.eval()")
-        self._validate_inputs(inputs, False)
+        self._validate_inputs(inputs, False, self.target_image_labels_allowed)
         images, features, base, probabilities, maps = self._bundle(inputs)
         outputs = self.search(features["res3"], features["res4"], maps)
         samples = [{"boxes": p.proposal_boxes.tensor.detach(), "image_size": IMAGE_SIZE} for p in base]

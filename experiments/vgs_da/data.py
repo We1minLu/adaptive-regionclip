@@ -24,25 +24,31 @@ def read_manifest(path):
     return records
 
 
-def validate_target_record(record):
-    if set(record) != TARGET_FIELDS:
-        raise ValueError('Target record has forbidden/missing fields: ' + repr(set(record) ^ TARGET_FIELDS))
+def validate_target_record(record, image_labels_allowed=True):
+    if not isinstance(image_labels_allowed, bool):
+        raise ValueError('image_labels_allowed must be an explicit boolean')
+    expected_fields = TARGET_FIELDS if image_labels_allowed else IMAGE_FIELDS
+    if set(record) != expected_fields:
+        raise ValueError('Target record has forbidden/missing fields: ' + repr(set(record) ^ expected_fields))
     if record['domain'] != 'target' or record['beta'] not in BETAS:
         raise ValueError('Invalid target domain or density')
     if record['image_id'] != record['scene_id'] + '_foggy_beta_' + record['beta']:
         raise ValueError('Target scene/density ID mismatch')
-    if len(record['image_labels']) != 8 or any(x not in (0, 1) for x in record['image_labels']):
+    if image_labels_allowed and (len(record['image_labels']) != 8 or any(x not in (0, 1) for x in record['image_labels'])):
         raise ValueError('Target labels must be eight binary image-presence values')
     if (record['height'], record['width']) != (1024, 2048):
         raise ValueError('Fixed 1024x2048 input required')
 
 
 class DetectionDataset:
-    def __init__(self, records, domain, training=True):
+    def __init__(self, records, domain, training=True, target_image_labels_allowed=True):
+        if not isinstance(target_image_labels_allowed, bool):
+            raise ValueError('target_image_labels_allowed must be an explicit boolean')
         self.records, self.domain, self.training = records, domain, bool(training)
+        self.target_image_labels_allowed = target_image_labels_allowed
         if domain == 'target' and training:
             for record in records:
-                validate_target_record(record)
+                validate_target_record(record, target_image_labels_allowed)
         elif domain == 'source' and training:
             for record in records:
                 if record['domain'] != 'source' or 'annotations' not in record:
@@ -78,9 +84,13 @@ class DetectionDataset:
         if not self.training:
             return output
         if self.domain == 'target':
-            output['image_labels'] = torch.tensor(record['image_labels'], dtype=torch.float32)
+            if self.target_image_labels_allowed:
+                output['image_labels'] = torch.tensor(record['image_labels'], dtype=torch.float32)
             # No annotations, Instances, boxes, proposals, or annotation paths.
-            assert set(output) == IMAGE_FIELDS | {'image', 'image_labels'}
+            expected = IMAGE_FIELDS | {'image'}
+            if self.target_image_labels_allowed:
+                expected = expected | {'image_labels'}
+            assert set(output) == expected
             return output
         from detectron2.structures import Boxes, Instances
         annotations = record['annotations']
@@ -154,7 +164,8 @@ def list_collate(batch):
 
 
 def build_loaders(manifest_dir, batch_size_source=2, batch_size_target=2, num_workers=2,
-                  seed=20261004, source_samples_consumed=0, target_samples_consumed=0):
+                  seed=20261004, source_samples_consumed=0, target_samples_consumed=0,
+                  target_image_labels_allowed=True):
     """Return infinite (source_loader, target_loader); samples are list-of-dicts.
 
     Resume counts refer to samples consumed by training, excluding prefetch.
@@ -164,7 +175,8 @@ def build_loaders(manifest_dir, batch_size_source=2, batch_size_target=2, num_wo
     from torch.utils.data import DataLoader
     root = Path(manifest_dir)
     source = DetectionDataset(read_manifest(root / 'source_train.json'), 'source', True)
-    target = DetectionDataset(read_manifest(root / 'target_train.json'), 'target', True)
+    target = DetectionDataset(read_manifest(root / 'target_train.json'), 'target', True,
+                              target_image_labels_allowed=target_image_labels_allowed)
     source_sampler = InfiniteSourceSampler(len(source), seed + 101, source_samples_consumed)
     target_sampler = EqualDensitySampler(target.records, seed + 202, target_samples_consumed)
     options = dict(num_workers=num_workers, collate_fn=list_collate, pin_memory=True)

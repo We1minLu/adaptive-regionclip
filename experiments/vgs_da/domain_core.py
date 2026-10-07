@@ -2,7 +2,9 @@
 
 The domain path observes visual p3/p4 BEFORE map fusion. Conditions and sample
 reliability come only from the same frozen B0 teacher in both domains, filtered
-by image-level class presence. Neither GT boxes nor per-ROI GT labels are read.
+by image-level class presence when explicitly supplied. UDA target samples use
+an explicit None to disable that filter. Neither GT boxes nor per-ROI GT labels
+are read.
 
 Typical integration (reuse an existing full SearchHead forward):
     tap = DomainFeatureTap(head)
@@ -143,9 +145,10 @@ def select_domain_rois(boxes, probs, rpn_logits, image_labels,
                        redundancy_threshold=0.5, k0=300):
     """Choose stop-gradient teacher ROIs with the identical rule in both domains.
 
-    image_labels must be an 8-element binary presence vector. It filters the
+    image_labels is an 8-element binary presence vector or explicit None. It filters the
     teacher's original argmax class AFTER confidence thresholding; probabilities
     are never renormalized and a rejected class is never replaced by another.
+    None disables only this filter, without supplying fabricated class labels.
 
     Group = (predicted_class * 3 + size_bin) * 2 + redundancy_bin.
     Size is original-image box area: <32^2, [32^2,96^2), >=96^2.
@@ -160,9 +163,9 @@ def select_domain_rois(boxes, probs, rpn_logits, image_labels,
     boxes = torch.as_tensor(boxes).detach().cpu().float()[:k0].reshape(-1, 4)
     probabilities = torch.as_tensor(probs).detach().cpu().float()[:len(boxes)]
     logits = torch.as_tensor(rpn_logits).detach().cpu().float().reshape(-1)[:len(boxes)]
-    presence = torch.as_tensor(image_labels).detach().cpu().reshape(-1)
-    if presence.shape != (NUM_CLASSES,) or not bool(((presence == 0) | (presence == 1)).all()):
-        raise ValueError("Both domains require an eight-element binary image_labels vector")
+    presence = None if image_labels is None else torch.as_tensor(image_labels).detach().cpu().reshape(-1)
+    if presence is not None and (presence.shape != (NUM_CLASSES,) or not bool(((presence == 0) | (presence == 1)).all())):
+        raise ValueError("image_labels must be an eight-element binary vector or explicit None")
     if probabilities.shape != (len(boxes), 9) or len(logits) != len(boxes):
         raise ValueError("B0 boxes, nine-class probabilities and RPN logits disagree")
     if not (torch.isfinite(boxes).all() and torch.isfinite(probabilities).all() and torch.isfinite(logits).all()):
@@ -176,7 +179,8 @@ def select_domain_rois(boxes, probs, rpn_logits, image_labels,
     if not len(boxes):
         return {"boxes": boxes, "indices": torch.empty(0, dtype=torch.long),
                 "groups": torch.empty(0, dtype=torch.long), "confidence": torch.empty(0),
-                "stats": {"b0_rois": 0, "reliable_before_presence": 0, "presence_rejected": 0,
+                "stats": {"b0_rois": 0, "presence_filter_enabled": presence is not None,
+                          "reliable_before_presence": 0, "presence_rejected": 0,
                           "eligible": 0, "selected": 0, "eligible_group_counts": {},
                           "selected_group_counts": {}, "redundancy_all_counts": [0, 0],
                           "redundancy_eligible_counts": [0, 0], "raw_foreground_winners": 0,
@@ -190,8 +194,13 @@ def select_domain_rois(boxes, probs, rpn_logits, image_labels,
     # this explicit guard preserves semantics if a threshold is configured lower.
     foreground_winner = probabilities.argmax(dim=1) < NUM_CLASSES
     reliable = reliable & foreground_winner
-    allowed = presence.bool()[classes]
-    eligible = reliable & allowed
+    if presence is None:
+        eligible = reliable
+        presence_rejected = 0
+    else:
+        allowed = presence.bool()[classes]
+        eligible = reliable & allowed
+        presence_rejected = int((reliable & ~allowed).sum())
     pairwise = box_iou(boxes, boxes)
     pairwise.fill_diagonal_(0)
     redundancy = pairwise.max(dim=1)[0]
@@ -223,8 +232,9 @@ def select_domain_rois(boxes, probs, rpn_logits, image_labels,
             break
         cursor += 1
     selected = torch.tensor(chosen, dtype=torch.long)
-    stats = {"b0_rois": len(boxes), "reliable_before_presence": int(reliable.sum()),
-             "presence_rejected": int((reliable & ~allowed).sum()), "eligible": int(eligible.sum()),
+    stats = {"b0_rois": len(boxes), "presence_filter_enabled": presence is not None,
+             "reliable_before_presence": int(reliable.sum()),
+             "presence_rejected": presence_rejected, "eligible": int(eligible.sum()),
              "selected": len(selected), "eligible_group_counts": _counts(groups[eligible]),
              "selected_group_counts": _counts(groups[selected]),
              "raw_foreground_winners": int(foreground_winner.sum()),
@@ -429,6 +439,9 @@ class ConditionalDomainAdapter(nn.Module):
                                           target_z, target_groups, grl_coeff)
         stats["source_selection"] = source_stats
         stats["target_selection"] = target_stats
+        stats["target_image_labels_used"] = any(row["presence_filter_enabled"] for row in target_stats)
+        stats["source_presence_filter_enabled"] = all(row["presence_filter_enabled"] for row in source_stats)
+        stats["target_presence_filter_enabled"] = all(row["presence_filter_enabled"] for row in target_stats)
         stats["grl_coeff"] = float(grl_coeff)
         return loss, stats
 

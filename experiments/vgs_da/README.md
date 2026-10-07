@@ -58,3 +58,11 @@ python experiments/vgs_da/train.py --config /data/vgs_da/config.json \
   --mode evaluate --resume /path/to/model_best_ap5598.pth \
   --output /data/vgs_da/best_evaluation
 ```
+
+## 目标域无标签对照
+
+`uda_25k` 从相同 SourceB 和源域 VGS 初始化重新训练 25K，每 1K 评估；其余超参数沿用上述稳定配置。先运行 `prepare_uda.py --input-dir 原清单目录 --output-dir 新清单目录`，再用 `configure.py --preset uda_25k` 配置该新目录。准备程序保持源域、评估清单和目标图像顺序不变，只移除目标训练记录中的 `image_labels`，不复制标签侧文件。
+
+目标域只取消条件域对抗的图像类别存在性过滤，仍以冻结教师类别概率 ≥0.7、RPN 概率 ≥0.5 选择候选，并保持原分组、排序和损失。源域仍使用完整 GT；目标域类别标签与框标注均不进入训练。数据加载器和模型会拒绝携带目标标签的 UDA 输入，也禁止从使用目标标签的断点完整续训。测试流程始终不需要图像级标签。
+
+此对照沿用原实验最终稳定的 ROI chunk 与 AMP 更新实现；历史 55.98 运行中曾调整 chunk 并修复 AMP，因此它是历史参照，严格因果消融仍需同版本重跑有标签组。新的 AP 需等待训练，不能预先判断标签过滤的影响大小。

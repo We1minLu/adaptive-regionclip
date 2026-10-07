@@ -16,7 +16,7 @@ import numpy as np
 import torch
 
 from amp_step import atomic_amp_step
-from continuation import validate_resume, grl_progress, format_evaluation
+from continuation import validate_resume, grl_progress, format_evaluation, validate_evaluation_supervision
 from checkpoint_identity import same_sources
 
 
@@ -120,7 +120,8 @@ def make_loaders(cfg, start_step):
                          batch_size_target=batch, num_workers=cfg["num_workers"],
                          seed=cfg["seed"],
                          source_samples_consumed=start_step * cfg["accumulation_steps"] * batch,
-                         target_samples_consumed=start_step * cfg["accumulation_steps"] * batch)
+                         target_samples_consumed=start_step * cfg["accumulation_steps"] * batch,
+                         target_image_labels_allowed=cfg.get("target_image_labels_allowed", True))
 
 
 def train_update(model, batches, optimizers, scaler, cfg, progress, step, output):
@@ -141,6 +142,8 @@ def train_update(model, batches, optimizers, scaler, cfg, progress, step, output
         for source, target in batches:
             assert all("instances" in record for record in source)
             assert all("instances" not in record and "annotations" not in record for record in target)
+            if cfg.get("target_image_labels_allowed", True) is False:
+                assert all("image_labels" not in record for record in target), "UDA target input contains image labels"
             for record in target:
                 beta = str(record["beta"])
                 density_counts[beta] = density_counts.get(beta, 0) + 1
@@ -232,8 +235,12 @@ def run_training(cfg, smoke=False, smoke_steps=6, resume=None, eval_smoke=True):
     set_seed(cfg["seed"])
     begin = time.time()
     assert digest(cfg["source_checkpoint"]) == cfg["source_checkpoint_sha256"]
-    assert cfg["target_image_labels_allowed"]
-    cfg["manifest_sha256"] = json.loads((Path(cfg["manifest_dir"]) / "data_audit.json").read_text())["manifest_sha256"]
+    if not isinstance(cfg.get("target_image_labels_allowed"), bool):
+        raise ValueError("target_image_labels_allowed must be an explicit boolean")
+    data_audit = json.loads((Path(cfg["manifest_dir"]) / "data_audit.json").read_text())
+    if data_audit.get("target_image_labels_allowed", True) != cfg["target_image_labels_allowed"]:
+        raise ValueError("Manifest and training target supervision policies differ")
+    cfg["manifest_sha256"] = data_audit["manifest_sha256"]
     for name, expected in cfg["manifest_sha256"].items():
         assert digest(Path(cfg["manifest_dir"]) / name) == expected, "Manifest changed: " + name
     atomic_json(output / "config.json", cfg)
@@ -419,7 +426,7 @@ def run_evaluation(model, cfg, output, max_images=None):
                       experiment_scope=cfg.get("experiment_scope", "formal_fixed_25k"),
                       primary_checkpoint_policy="fixed_%d" % cfg["max_steps"],
                       auxiliary_best_checkpoint_policy="highest_observed_validation_mixed_AP50",
-                      target_image_labels_used_in_training=True,
+                      target_image_labels_used_in_training=cfg["target_image_labels_allowed"],
                       evaluation_GT_used_for_training=False,
                       validation_metrics_used_for_exploration_and_auxiliary_best=True)
         result.pop("target_used_for_selection",None)
@@ -461,8 +468,10 @@ def main():
     try:
         if args.mode == "evaluate":
             from model import FormalVGSDA
-            model = FormalVGSDA(cfg).to("cuda")
             state = torch.load(args.resume, map_location="cpu")
+            validate_evaluation_supervision(state.get("config", {}), cfg)
+            validate_evaluation_supervision(state["model"].get("config", {}), cfg)
+            model = FormalVGSDA(cfg).to("cuda")
             model.load_checkpoint_state(state["model"])
             print(json.dumps(run_evaluation(model, cfg, Path(cfg["output_dir"]) / "evaluation")), flush=True)
         else:

@@ -83,6 +83,14 @@ def grl_progress(step, cfg):
     return max(0.0, min(1.0, value / _horizon(cfg)))
 
 
+def validate_evaluation_supervision(saved, cfg):
+    """Do not label a checkpoint trained with target annotations as UDA."""
+    before = saved.get("target_image_labels_allowed")
+    current = cfg.get("target_image_labels_allowed")
+    if type(before) is not bool or type(current) is not bool or before != current:
+        raise ValueError("Evaluation checkpoint target image-label supervision differs from config")
+
+
 def _score(value):
     if isinstance(value, bool):
         return "NA"
