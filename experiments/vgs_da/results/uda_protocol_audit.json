@@ -1,0 +1,37 @@
+{
+  "passed": true,
+  "changed_fields": {
+    "experiment": {
+      "old": "formal_vgs_da_20261004",
+      "new": "formal_vgs_uda_20261007"
+    },
+    "eval_period": {
+      "old": 5000,
+      "new": 1000
+    },
+    "target_image_labels_allowed": {
+      "old": true,
+      "new": false
+    },
+    "output_dir": {
+      "old": "/root/autodl-tmp/formal_vgs_da_20261004/run",
+      "new": "/root/autodl-tmp/formal_vgs_uda_20261007/run"
+    },
+    "manifest_dir": {
+      "old": "/root/autodl-tmp/formal_vgs_da_20261004/data",
+      "new": "/root/autodl-tmp/formal_vgs_uda_20261007/data"
+    },
+    "experiment_scope": {
+      "old": "formal_fixed_25k",
+      "new": "uda_image_label_ablation_fixed_25k"
+    }
+  },
+  "target_images": 8925,
+  "source_images": 2975,
+  "eval_images": 1500,
+  "source_eval_bytes_identical": true,
+  "source_assets_identical": true,
+  "target_labels_absent": true,
+  "start_from_source_only": true,
+  "historical_code_note": "Same final stable ROI chunk and atomic AMP code; historical run changed those during training."
+}

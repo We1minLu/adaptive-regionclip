@@ -1,0 +1,15 @@
+{
+  "regime": "unsupervised_domain_adaptation",
+  "target_image_labels_used": false,
+  "best_step": 9000,
+  "best_mixed_AP50": 56.18752402035942,
+  "best_checkpoint": "/root/autodl-tmp/checkpoints/vgs_uda_ap5619_9k/model_best_ap5619.pth",
+  "original_checkpoint": "/root/autodl-tmp/formal_vgs_uda_20261007/run/model_best_observed.pth",
+  "bytes": 155165477,
+  "sha256": "d2fea1c8ae83961c5db478251357a48cf1ac4934b5a37627fa7722a79be320b9",
+  "checkpoint_kind": "inference; optimizer state for 9K not retained",
+  "fixed_assets_directory": "/root/autodl-tmp/checkpoints/vgs_da_ap5598_25k/fixed_assets",
+  "final_25k_checkpoint": "/root/autodl-tmp/formal_vgs_uda_20261007/run/model_final.pth",
+  "final_25k_resume": "/root/autodl-tmp/formal_vgs_uda_20261007/run/checkpoint_last.pth",
+  "resume_from_best_9k_supported": false
+}
