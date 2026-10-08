@@ -21,6 +21,30 @@ UNCHANGED_KEYS = (
     "gradient_step_policy",
 )
 
+# Canonical defaults let legacy baseline checkpoints resume with an explicitly
+# disabled consistency branch. They do not allow enabling a new objective on
+# a full-state resume; that must be an explicit new experiment/warm start.
+CONSISTENCY_DEFAULTS = {
+    "image_consistency_enabled": False,
+    "strong_weak_enabled": False,
+    "ema_decay": .9996,
+    "image_consistency_weight": 1.,
+    "image_aggregation": "h2fa_iir",
+    "source_view": "strong",
+    "evaluation_model": "student",
+}
+
+
+def consistency_settings(cfg):
+    values = {key: cfg.get(key, default)
+              for key, default in CONSISTENCY_DEFAULTS.items()}
+    for key in ("image_consistency_enabled", "strong_weak_enabled"):
+        if type(values[key]) is not bool:
+            raise ValueError(key + " must be a boolean")
+    values["semantic_teacher_mode"] = cfg.get(
+        "semantic_teacher_mode", "ema" if values["image_consistency_enabled"] else "fixed")
+    return values
+
 
 def _positive_int(value, name):
     if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
@@ -56,6 +80,10 @@ def validate_resume(old, cfg, saved_step, verified_sources=False):
             continue
         if old.get(key, missing) != cfg.get(key, missing):
             raise ValueError("Resume config changed: " + key)
+    old_consistency, new_consistency = consistency_settings(old), consistency_settings(cfg)
+    for key, value in old_consistency.items():
+        if value != new_consistency[key]:
+            raise ValueError("Resume config changed: " + key)
     old_horizon, new_horizon = _horizon(old), _horizon(cfg)
     if old_horizon != new_horizon:
         raise ValueError("Resume config changed: grl_schedule_steps (%s -> %s)" %
@@ -89,6 +117,10 @@ def validate_evaluation_supervision(saved, cfg):
     current = cfg.get("target_image_labels_allowed")
     if type(before) is not bool or type(current) is not bool or before != current:
         raise ValueError("Evaluation checkpoint target image-label supervision differs from config")
+    saved_consistency, current_consistency = consistency_settings(saved), consistency_settings(cfg)
+    for key, value in saved_consistency.items():
+        if value != current_consistency[key]:
+            raise ValueError("Evaluation checkpoint consistency config differs: " + key)
 
 
 def _score(value):

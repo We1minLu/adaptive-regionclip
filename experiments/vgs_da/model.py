@@ -4,8 +4,8 @@ The fixed SourceB teacher supplies B0 semantics only. Source detection gradients
 reach the student's actual C3/C4/res5/attention-pool and native box regressor.
 Proposal coordinates, maps and conditional labels are stop-gradient; the search
 head receives its own supervised anchor losses and conditional domain loss.
-No target boxes, target detection pseudo-loss, new prompt, quality head, entropy
-reranking or RPN-score multiplication is implemented here.
+The optional EMA experiment adds AT-style paired views and H2FA image-level
+soft consistency, never target pseudo-box classification/regression losses.
 """
 import contextlib
 import copy
@@ -23,16 +23,17 @@ from torch.utils.checkpoint import checkpoint
 
 HERE = Path(__file__).resolve().parent
 try:
-    from search_core import SearchHead, build_maps, training_loss, select_candidates
+    from search_core import SearchHead, build_maps, training_loss, select_candidates, flatten_outputs
     from domain_core import ConditionalDomainAdapter, DomainFeatureTap, gradient_reverse
 except ImportError:
     # Local read-only development fallback; deployed code includes both files.
     for folder in (HERE.parent / "learned_search", HERE.parent / "learned_search_da"):
         sys.path.insert(0, str(folder))
-    from search_core import SearchHead, build_maps, training_loss, select_candidates
+    from search_core import SearchHead, build_maps, training_loss, select_candidates, flatten_outputs
     from domain_core import ConditionalDomainAdapter, DomainFeatureTap, gradient_reverse
 
 VERSION = "formal-regionclip-vgs-da-v1"
+EMA_VERSION = "formal-regionclip-vgs-da-ema-image-v2"
 IMAGE_SIZE = (1024, 2048)
 
 
@@ -124,6 +125,25 @@ class FormalVGSDA(nn.Module):
         super().__init__()
         self.config = dict(config)
         self.target_image_labels_allowed = target_image_labels_allowed(config)
+        self.image_consistency_enabled = config.get("image_consistency_enabled", False)
+        if type(self.image_consistency_enabled) is not bool:
+            raise ValueError("image_consistency_enabled must be a boolean")
+        self.version = EMA_VERSION if self.image_consistency_enabled else VERSION
+        self.ema_updates = 0
+        self.ema_decay = float(config.get("ema_decay", .9996))
+        self.image_consistency_weight = float(config.get("image_consistency_weight", 1.))
+        if self.image_consistency_enabled:
+            if self.target_image_labels_allowed or config.get("strong_weak_enabled") is not True:
+                raise ValueError("EMA image consistency requires unlabeled target and strong/weak views")
+            if (self.ema_decay, self.image_consistency_weight) != (.9996, 1.):
+                raise ValueError("Requested EMA/image loss coefficients are 0.9996 and 1.0")
+            if (config.get("image_aggregation", "h2fa_iir"),
+                config.get("semantic_teacher_mode", "ema"),
+                config.get("source_view", "strong"),
+                config.get("evaluation_model", "student")) != ("h2fa_iir", "ema", "strong", "student"):
+                raise ValueError("Unsupported EMA image-consistency protocol")
+        elif config.get("strong_weak_enabled", False):
+            raise ValueError("Paired augmentation requires the explicit EMA consistency experiment")
         if config.get("repo_root") and str(config["repo_root"]) not in sys.path:
             sys.path.insert(0, str(config["repo_root"]))
         from detectron2.config import get_cfg
@@ -180,6 +200,9 @@ class FormalVGSDA(nn.Module):
             del search_state
         else:
             self.search = SearchHead(arm="vgs")
+        if self.image_consistency_enabled:
+            self.teacher_search = copy.deepcopy(self.search).requires_grad_(False)
+            self.teacher_bbox = copy.deepcopy(predictor.bbox_pred).requires_grad_(False)
         self.global_D = TraditionalDomainDiscriminators()
         self.conditional_D = ConditionalDomainAdapter(channels=self.search.model_config["channels"])
         self.teacher_roi_chunk = int(config.get("teacher_roi_chunk", 64))
@@ -199,7 +222,7 @@ class FormalVGSDA(nn.Module):
         self.source_identity = {name: {"path": str(Path(config[name]).resolve()), "sha256": file_sha(config[name])}
             for name in ("source_cfg", "source_checkpoint", "rpn_checkpoint", "text_embeddings")}
         self.source_identity["source_search_checkpoint"] = ({"path": str(Path(search_path).resolve()), "sha256": file_sha(search_path)} if search_path else None)
-        self.initialization_audit = {"version": VERSION, "source_iteration": iteration, "sources": self.source_identity,
+        self.initialization_audit = {"version": self.version, "source_iteration": iteration, "sources": self.source_identity,
             "trainable_detector": [name for name, p in self.student.named_parameters() if p.requires_grad],
             "source_roi_batch": self.student.roi_heads.batch_size_per_image,
             "source_roi_positive_fraction": self.student.roi_heads.positive_fraction,
@@ -212,6 +235,16 @@ class FormalVGSDA(nn.Module):
             "target_presence_filter_enabled": self.target_image_labels_allowed,
             "source_presence_origin": "source_GT_class_presence",
             "maps": "original 15 channels, detached teacher B0 semantics and RPN geometry; no new entropy reranking"}
+        if self.image_consistency_enabled:
+            self.initialization_audit.update(
+                teacher="EMA recognition backbone, VGS and bbox; fixed native classifier and shared frozen RPN",
+                ema_decay=self.ema_decay, image_consistency_weight=self.image_consistency_weight,
+                image_aggregation="H2FA IIR foreground-softmax times class-routed raw-objectness proposal-softmax",
+                consistency_target="detached weak-view teacher soft image probabilities; no target GT",
+                semantic_teacher_mode="EMA weak-view teacher also supplies S maps and conditional-DA classes",
+                source_view="strong only; existing source GT supervision weight unchanged",
+                evaluation_model="student", burn_in_steps=0,
+                consistency_gradient_scope="student ROI/backbone and selected VGS raw objectness; no box-coordinate loss")
         self.to(torch.device(config.get("device", "cuda")))
         self.train(True)
         detector_ids = {id(p) for p in self.detector_parameters()}
@@ -233,12 +266,36 @@ class FormalVGSDA(nn.Module):
         super().train(mode)
         if hasattr(self, "teacher_backbone"):
             self.teacher_backbone.eval(); self.teacher_classifier.eval()
+            if getattr(self, "image_consistency_enabled", False):
+                self.teacher_search.eval(); self.teacher_bbox.eval()
             self.student.offline_backbone.eval(); self.student.offline_proposal_generator.eval()
             # Preserve source normalization statistics even if a source module
             # contains ordinary BatchNorm instead of FrozenBatchNorm.
             for module in self.student.backbone.modules():
                 if isinstance(module, nn.modules.batchnorm._BatchNorm): module.eval()
         return self
+
+    @torch.no_grad()
+    def update_teacher(self):
+        """Called once by the trainer, only after both student optimizers commit."""
+        if not self.image_consistency_enabled:
+            return
+        from ema import update_ema
+        for teacher, student in ((self.teacher_backbone, self.student.backbone),
+                                 (self.teacher_search, self.search),
+                                 (self.teacher_bbox, self.student.roi_heads.box_predictor.bbox_pred)):
+            update_ema(teacher, student, self.ema_decay)
+        self.ema_updates += 1
+
+    @staticmethod
+    def _weak_inputs(inputs):
+        result = []
+        for record in inputs:
+            weak = record.get("image_weak")
+            if weak is None or weak.shape != record["image"].shape or weak.dtype != record["image"].dtype:
+                raise ValueError("EMA training requires paired weak/strong images with shared geometry")
+            result.append(dict(record, image=weak))
+        return result
 
     @staticmethod
     def _validate_inputs(inputs, source=False, target_image_labels_allowed=True):
@@ -281,10 +338,11 @@ class FormalVGSDA(nn.Module):
         return scores, deltas, scores, scores
 
     @torch.no_grad()
-    def _teacher_semantics(self, images, proposals):
+    def _teacher_semantics(self, images, proposals, features=None):
         probabilities = []
         with torch.cuda.amp.autocast(enabled=False):
-            features = self.teacher_backbone(images.tensor.float())
+            if features is None:
+                features = self.teacher_backbone(images.tensor.float())
             for image_index, proposal in enumerate(proposals):
                 parts = []
                 boxes = proposal.proposal_boxes.tensor.detach()
@@ -294,12 +352,14 @@ class FormalVGSDA(nn.Module):
                 probabilities.append(torch.cat(parts) if parts else boxes.new_empty((0, 9)))
         return probabilities
 
-    def _bundle(self, inputs):
+    def _bundle(self, inputs, teacher_features=None):
         base = self._base_proposals(inputs)
         images = self.student.preprocess_image(inputs)
         if tuple(images.tensor.shape[-2:]) != IMAGE_SIZE or any(tuple(size) != IMAGE_SIZE for size in images.image_sizes):
             raise ValueError("Padded/mismatched image geometry cannot use the original map construction")
-        probabilities = self._teacher_semantics(images, base)
+        # Paired views share coordinates, so weak teacher features may score
+        # strong-view RPN boxes without any box transform or label transfer.
+        probabilities = self._teacher_semantics(images, base, features=teacher_features)
         features = self.student.recognition_features(images, base, is_source=False)
         grid = tuple(features["res3"].shape[-2:])
         if grid != (128, 256) or tuple(features["res4"].shape[-2:]) != (64, 128):
@@ -340,18 +400,26 @@ class FormalVGSDA(nn.Module):
         from detectron2.structures import Boxes, Instances
         merged, information = [], []
         for i, (sample, initial) in enumerate(zip(samples, base)):
-            boxes, scores, stats = select_candidates(outputs, anchors, sample, batch_index=i)
+            use_iir = getattr(self, "image_consistency_enabled", False)
+            selected = select_candidates(outputs, anchors, sample, batch_index=i, return_indices=use_iir)
+            boxes, scores, stats = selected[:3]
             proposal = Instances(initial.image_size)
             proposal.proposal_boxes = Boxes(torch.cat((initial.proposal_boxes.tensor.detach(), boxes.detach())))
             p = scores.detach().clamp(1e-6, 1 - 1e-6)
             proposal.objectness_logits = torch.cat((initial.objectness_logits.detach(), torch.log(p) - torch.log1p(-p)))
             proposal.is_supplement = torch.cat((torch.zeros(len(initial), dtype=torch.bool, device=self.device), torch.ones(len(boxes), dtype=torch.bool, device=self.device)))
+            if use_iir:
+                # Keep selection exactly obj*miss. IIR instead weights proposals
+                # by raw objectness and differentiates the selected VGS logits.
+                raw_obj = flatten_outputs(outputs)["obj"][i, selected[3]].float()
+                proposal.aggregation_objectness_logits = torch.cat((initial.objectness_logits.detach().float(), raw_obj))
             merged.append(proposal)
             information.append({"base": len(initial), **stats})
         return merged, information
 
-    def _roi_predictions(self, features, proposals, chunk, train=False):
+    def _roi_predictions(self, features, proposals, chunk, train=False, teacher=False):
         prediction_parts = []
+        backbone = self.teacher_backbone if teacher else self.student.backbone
         for i, proposal in enumerate(proposals):
             boxes = proposal.proposal_boxes.tensor.detach()
             feature = features["res4"][i:i + 1]
@@ -364,9 +432,14 @@ class FormalVGSDA(nn.Module):
                     # Explicitly preserve forward precision under the old
                     # PyTorch1.9 reentrant checkpoint backward recomputation.
                     with torch.cuda.amp.autocast(enabled=enabled):
-                        return self._raw_roi_features(value, roi_boxes, self.student.backbone)
+                        return self._raw_roi_features(value, roi_boxes, backbone)
                 raw = checkpoint(operation, feature) if train and self.checkpoint_res5 and feature.requires_grad else operation(feature)
-                prediction_parts.append(self._native_predictions(raw))
+                if teacher:
+                    logits = self.teacher_classifier(raw)
+                    scores = torch.cat((logits, logits), dim=1)
+                    prediction_parts.append((scores, self.teacher_bbox(raw), scores, scores))
+                else:
+                    prediction_parts.append(self._native_predictions(raw))
         if not prediction_parts:
             raw = features["res4"].new_zeros((0, self.student.roi_heads.box_predictor.cls_score.in_features)) + features["res4"].sum() * 0
             return self._native_predictions(raw)
@@ -381,13 +454,66 @@ class FormalVGSDA(nn.Module):
         except AssertionError:
             return EventStorage()
 
+    @staticmethod
+    def _image_probabilities(predictions, proposals):
+        from image_consistency import h2fa_aggregate
+        # Native prediction has TWO identical 9-class groups. Use exactly the
+        # eight foreground columns of the first group, not all 17 non-last columns.
+        rows = predictions[0][:, :8].split([len(p) for p in proposals])
+        return torch.stack([h2fa_aggregate(z, p.aggregation_objectness_logits)
+                            for z, p in zip(rows, proposals)])
+
+    @torch.no_grad()
+    def _teacher_image_predictions(self, weak_inputs, weak_features):
+        """Independent weak RPN+EMA-VGS proposals, without any GT/pseudo boxes."""
+        with torch.cuda.amp.autocast(enabled=False):
+            base = self._base_proposals(weak_inputs)
+            probabilities = self._teacher_semantics(None, base, features=weak_features)
+            maps = torch.stack([torch.from_numpy(build_maps(
+                p.proposal_boxes.tensor.detach().cpu().numpy(),
+                p.objectness_logits.detach().cpu().numpy(), q.cpu().numpy(),
+                IMAGE_SIZE, tuple(weak_features["res3"].shape[-2:])))
+                for p, q in zip(base, probabilities)]).to(self.device, dtype=torch.float32)
+            outputs = self.teacher_search(weak_features["res3"], weak_features["res4"], maps)
+            samples = [{"boxes": p.proposal_boxes.tensor.detach(), "image_size": IMAGE_SIZE} for p in base]
+            merged, selection = self._merged(outputs, self.teacher_search.anchors(outputs), samples, base)
+            predictions = self._roi_predictions(weak_features, merged, self.teacher_roi_chunk, teacher=True)
+            return self._image_probabilities(predictions, merged), selection
+
+    def _image_consistency_loss(self, target_features, target_merged, weak_inputs, weak_features):
+        from image_consistency import image_consistency, h2fa_group_diagnostics
+        teacher_prob, teacher_selection = self._teacher_image_predictions(weak_inputs, weak_features)
+        student_predictions = self._roi_predictions(target_features, target_merged,
+                                                    self.train_roi_chunk, train=True)
+        student_prob = self._image_probabilities(student_predictions, target_merged)
+        loss = self.image_consistency_weight * image_consistency(student_prob, teacher_prob)
+        diagnostic = []
+        rows = student_predictions[0][:, :8].detach().split([len(p) for p in target_merged])
+        for z, p in zip(rows, target_merged):
+            diagnostic.append(h2fa_group_diagnostics(z, p.aggregation_objectness_logits.detach(),
+                                                     int((~p.is_supplement).sum())))
+        stats = {"weight": self.image_consistency_weight, "ema_decay": self.ema_decay,
+                 "teacher_updates_before_step": self.ema_updates,
+                 "student_image_probabilities": student_prob.detach().cpu().tolist(),
+                 "teacher_image_probabilities": teacher_prob.cpu().tolist(),
+                 "absolute_probability_gap": float((student_prob.detach() - teacher_prob).abs().mean()),
+                 "teacher_selection": teacher_selection, "student_aggregation": diagnostic,
+                 "target_pseudo_box_losses": False}
+        return loss, stats
+
     def training_losses(self, source_inputs, target_inputs, progress):
         if not self.training:
             raise ValueError("training_losses requires model.train()")
         self._validate_inputs(source_inputs, True)
         self._validate_inputs(target_inputs, False, self.target_image_labels_allowed)
         n = len(source_inputs); inputs = list(source_inputs) + list(target_inputs)
-        images, features, base, probabilities, maps = self._bundle(inputs)
+        weak_inputs, weak_features = None, None
+        if self.image_consistency_enabled:
+            weak_inputs = self._weak_inputs(inputs)
+            with torch.no_grad(), torch.cuda.amp.autocast(enabled=False):
+                weak_images = self.student.preprocess_image(weak_inputs)
+                weak_features = self.teacher_backbone(weak_images.tensor.float())
+        images, features, base, probabilities, maps = self._bundle(inputs, teacher_features=weak_features)
         samples = self._samples(inputs, base, probabilities, n)
         with DomainFeatureTap(self.search) as tap:
             outputs = self.search(features["res3"], features["res4"], maps)
@@ -395,7 +521,11 @@ class FormalVGSDA(nn.Module):
         anchors = self.search.anchors(outputs)
         source_outputs = [{key: value[:n] if torch.is_tensor(value) else value for key, value in level.items()} for level in outputs]
         search_loss, search_stats = training_loss(source_outputs, anchors, samples[:n])
-        merged, selection_stats = self._merged(outputs, anchors, samples[:n], base[:n])
+        if self.image_consistency_enabled:
+            all_merged, all_selection = self._merged(outputs, anchors, samples, base)
+            merged, selection_stats = all_merged[:n], all_selection[:n]
+        else:
+            merged, selection_stats = self._merged(outputs, anchors, samples[:n], base[:n])
         targets = [record["instances"].to(self.device) for record in source_inputs]
         with self._event_context():
             proposals = self.student.roi_heads.label_and_sample_proposals(merged, targets)
@@ -417,6 +547,11 @@ class FormalVGSDA(nn.Module):
             "loss_search_box": self.search_loss_weight * search_loss["box"],
             "loss_traditional_domain": self.traditional_domain_weight * global_loss,
             "loss_conditional_domain": self.conditional_domain_weight * conditional_loss}
+        image_stats = None
+        if self.image_consistency_enabled:
+            losses["loss_target_image_consistency"], image_stats = self._image_consistency_loss(
+                {k: v[n:] for k, v in features.items() if v is not None}, all_merged[n:], weak_inputs[n:],
+                {k: v[n:] for k, v in weak_features.items() if v is not None})
         if not all(bool(torch.isfinite(value)) for value in losses.values()):
             raise FloatingPointError("Nonfinite integrated source/domain loss")
         roi_stats = {"sampled": sum(len(p) for p in proposals),
@@ -430,7 +565,9 @@ class FormalVGSDA(nn.Module):
                  "conditional_grl_coefficient": self.conditional_grl_max * coefficient,
                  "target_box_GT_used": False, "target_image_labels_used": self.target_image_labels_allowed,
                  "target_presence_filter_enabled": self.target_image_labels_allowed,
-                 "teacher_fixed": True, "source_GT_appended": False}
+                 "teacher_fixed": not self.image_consistency_enabled, "source_GT_appended": False}
+        if image_stats is not None:
+            stats["image_consistency"] = image_stats
         return losses, stats
 
     @torch.no_grad()
@@ -494,18 +631,31 @@ class FormalVGSDA(nn.Module):
     def checkpoint_state(self):
         # Frozen native text/prompt/offline modules are recovered from the exact
         # source checkpoint, not duplicated in every new experiment checkpoint.
-        return {"version": VERSION, "sources": self.source_identity, "config": self.config,
+        state = {"version": self.version, "sources": self.source_identity, "config": self.config,
                 "student_backbone": self._cpu_state(self.student.backbone),
                 "student_bbox": self._cpu_state(self.student.roi_heads.box_predictor.bbox_pred),
                 "search": self._cpu_state(self.search), "global_D": self._cpu_state(self.global_D),
                 "conditional_D": self._cpu_state(self.conditional_D), "initialization_audit": self.initialization_audit}
+        if self.image_consistency_enabled:
+            state.update(teacher_backbone=self._cpu_state(self.teacher_backbone),
+                         teacher_search=self._cpu_state(self.teacher_search),
+                         teacher_bbox=self._cpu_state(self.teacher_bbox), ema_updates=self.ema_updates)
+        return state
 
     def load_checkpoint_state(self, state):
-        if state.get("version") != VERSION or not same_sources(state.get("sources"), self.source_identity):
+        if state.get("version") != self.version or not same_sources(state.get("sources"), self.source_identity):
             raise ValueError("Checkpoint fixed-source identity differs from this experiment")
         for module, name in ((self.student.backbone, "student_backbone"), (self.student.roi_heads.box_predictor.bbox_pred, "student_bbox"),
                              (self.search, "search"), (self.global_D, "global_D"), (self.conditional_D, "conditional_D")):
             module.load_state_dict(state[name], strict=True)
+        if self.image_consistency_enabled:
+            for module, name in ((self.teacher_backbone, "teacher_backbone"),
+                                 (self.teacher_search, "teacher_search"), (self.teacher_bbox, "teacher_bbox")):
+                module.load_state_dict(state[name], strict=True)
+            updates = state["ema_updates"]
+            if type(updates) is not int or updates < 0:
+                raise ValueError("Invalid EMA update count")
+            self.ema_updates = updates
         self.train(self.training)
 
 

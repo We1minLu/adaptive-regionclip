@@ -385,7 +385,7 @@ def training_loss(outputs, anchors, samples, sample_count=256, miss_weight=1.0, 
 @torch.no_grad()
 def select_candidates(outputs, anchors, sample, batch_index=0, kplus=200,
                       pre_nms=2000, nms_threshold=0.7, duplicate_iou=0.95,
-                      score_mode="residual"):
+                      score_mode="residual", return_indices=False):
     pred = flatten_outputs(outputs)
     score = pred["obj"][batch_index].float().sigmoid()
     if score_mode == "residual":
@@ -399,19 +399,22 @@ def select_candidates(outputs, anchors, sample, batch_index=0, kplus=200,
     boxes[:, 1::2].clamp_(min=0, max=ih)
     wh = boxes[:, 2:] - boxes[:, :2]
     valid = torch.isfinite(boxes).all(dim=1) & torch.isfinite(scores) & (wh.min(dim=1)[0] >= 1)
-    boxes, scores = boxes[valid], scores[valid]
+    boxes, scores, indices = boxes[valid], scores[valid], indices[valid]
     before_duplicates = len(boxes)
     base = sample["boxes"].to(boxes.device).float()
     if len(boxes) and len(base):
         keep = box_iou(boxes, base).max(dim=1)[0] <= duplicate_iou
-        boxes, scores = boxes[keep], scores[keep]
+        boxes, scores, indices = boxes[keep], scores[keep], indices[keep]
     duplicate_removed = before_duplicates - len(boxes)
     # Filter duplicate base boxes before NMS/top-K so lower-ranked surviving
     # candidates refill the budget within the fixed pre-NMS pool.
     keep = nms(boxes, scores, nms_threshold)[:kplus]
     info = {"selected": len(keep), "pre_nms_valid": before_duplicates,
             "base_duplicates_removed": duplicate_removed, "underfilled": len(keep) < kplus}
-    return boxes[keep], scores[keep], info
+    result = (boxes[keep], scores[keep], info)
+    # Selection/coordinates stay discrete. Callers can gather the original raw
+    # objectness outside no_grad for H2FA's differentiable proposal weighting.
+    return result + (indices[keep],) if return_indices else result
 
 
 @torch.no_grad()

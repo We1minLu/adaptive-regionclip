@@ -41,11 +41,19 @@ def validate_target_record(record, image_labels_allowed=True):
 
 
 class DetectionDataset:
-    def __init__(self, records, domain, training=True, target_image_labels_allowed=True):
+    def __init__(self, records, domain, training=True, target_image_labels_allowed=True,
+                 strong_weak_enabled=False):
         if not isinstance(target_image_labels_allowed, bool):
             raise ValueError('target_image_labels_allowed must be an explicit boolean')
         self.records, self.domain, self.training = records, domain, bool(training)
         self.target_image_labels_allowed = target_image_labels_allowed
+        if not isinstance(strong_weak_enabled, bool):
+            raise ValueError('strong_weak_enabled must be an explicit boolean')
+        self.strong_weak_enabled = strong_weak_enabled and self.training
+        self.strong_augmentation = None
+        if self.strong_weak_enabled:
+            from augmentation import build_strong_augmentation
+            self.strong_augmentation = build_strong_augmentation()
         if domain == 'target' and training:
             for record in records:
                 validate_target_record(record, target_image_labels_allowed)
@@ -66,10 +74,16 @@ class DetectionDataset:
         import numpy as np
         import torch
         from PIL import Image
+        augmentation_seed = None
         if isinstance(item, tuple):
-            index, flip = item
+            if len(item) == 3 and self.strong_weak_enabled:
+                index, flip, augmentation_seed = item
+            else:
+                index, flip = item
         else:
             index, flip = item, False
+        if self.strong_weak_enabled and augmentation_seed is None:
+            raise ValueError('Strong/weak training requires a sampler-provided augmentation seed')
         if flip and not self.training:
             raise ValueError('Validation augmentation is forbidden')
         record = self.records[index]
@@ -81,6 +95,13 @@ class DetectionDataset:
             array = array[:, ::-1, :]
         output = {k: record[k] for k in IMAGE_FIELDS}
         output['image'] = torch.from_numpy(np.ascontiguousarray(array.transpose(2, 0, 1)))
+        if self.strong_weak_enabled:
+            from augmentation import apply_strong_augmentation
+            output['image_weak'] = output['image']
+            strong = apply_strong_augmentation(Image.fromarray(array, mode='RGB'),
+                                               augmentation_seed, self.strong_augmentation)
+            output['image'] = torch.from_numpy(
+                np.ascontiguousarray(np.asarray(strong).transpose(2, 0, 1)))
         if not self.training:
             return output
         if self.domain == 'target':
@@ -88,6 +109,8 @@ class DetectionDataset:
                 output['image_labels'] = torch.tensor(record['image_labels'], dtype=torch.float32)
             # No annotations, Instances, boxes, proposals, or annotation paths.
             expected = IMAGE_FIELDS | {'image'}
+            if self.strong_weak_enabled:
+                expected = expected | {'image_weak'}
             if self.target_image_labels_allowed:
                 expected = expected | {'image_labels'}
             assert set(output) == expected
@@ -117,11 +140,20 @@ def shuffled_forever(indices, rng):
         yield from order
 
 
+def augmentation_seed(seed, domain, count):
+    """Pure sample-address seed; does not draw from either sampler RNG stream."""
+    domain_offset = {'source': 1000000007, 'target': 2000000011}[domain]
+    return (int(seed) + domain_offset + 1000003 * int(count)) % (2 ** 63)
+
+
 class InfiniteSourceSampler:
-    def __init__(self, size, seed, start_index=0):
+    def __init__(self, size, seed, start_index=0, enable_aug_seed=False):
         if size <= 0 or start_index < 0:
             raise ValueError('Invalid source sampler size/start')
         self.size, self.seed, self.start_index = int(size), int(seed), int(start_index)
+        if not isinstance(enable_aug_seed, bool):
+            raise ValueError('enable_aug_seed must be an explicit boolean')
+        self.enable_aug_seed = enable_aug_seed
 
     def __iter__(self):
         choices = shuffled_forever(range(self.size), random.Random(self.seed))
@@ -129,11 +161,14 @@ class InfiniteSourceSampler:
         for count, index in enumerate(choices):
             flip = flips.random() < .5
             if count >= self.start_index:
-                yield index, flip
+                if self.enable_aug_seed:
+                    yield index, flip, augmentation_seed(self.seed, 'source', count)
+                else:
+                    yield index, flip
 
 
 class EqualDensitySampler:
-    def __init__(self, records, seed, start_index=0):
+    def __init__(self, records, seed, start_index=0, enable_aug_seed=False):
         self.indices = {b: [i for i, r in enumerate(records) if r['beta'] == b] for b in BETAS}
         if len({len(v) for v in self.indices.values()}) != 1 or not all(self.indices.values()):
             raise ValueError('Equal density sampler requires a nonempty complete triplet manifest')
@@ -143,6 +178,9 @@ class EqualDensitySampler:
         if start_index < 0:
             raise ValueError('Invalid target sampler start')
         self.seed, self.start_index = int(seed), int(start_index)
+        if not isinstance(enable_aug_seed, bool):
+            raise ValueError('enable_aug_seed must be an explicit boolean')
+        self.enable_aug_seed = enable_aug_seed
 
     def __iter__(self):
         streams = {b: shuffled_forever(self.indices[b], random.Random(self.seed + 1009 * (i + 1)))
@@ -155,7 +193,10 @@ class EqualDensitySampler:
             for beta in order:
                 sample = next(streams[beta]), flips.random() < .5
                 if count >= self.start_index:
-                    yield sample
+                    if self.enable_aug_seed:
+                        yield sample + (augmentation_seed(self.seed, 'target', count),)
+                    else:
+                        yield sample
                 count += 1
 
 
@@ -165,7 +206,7 @@ def list_collate(batch):
 
 def build_loaders(manifest_dir, batch_size_source=2, batch_size_target=2, num_workers=2,
                   seed=20261004, source_samples_consumed=0, target_samples_consumed=0,
-                  target_image_labels_allowed=True):
+                  target_image_labels_allowed=True, strong_weak_enabled=False):
     """Return infinite (source_loader, target_loader); samples are list-of-dicts.
 
     Resume counts refer to samples consumed by training, excluding prefetch.
@@ -174,11 +215,15 @@ def build_loaders(manifest_dir, batch_size_source=2, batch_size_target=2, num_wo
     import torch
     from torch.utils.data import DataLoader
     root = Path(manifest_dir)
-    source = DetectionDataset(read_manifest(root / 'source_train.json'), 'source', True)
+    source = DetectionDataset(read_manifest(root / 'source_train.json'), 'source', True,
+                              strong_weak_enabled=strong_weak_enabled)
     target = DetectionDataset(read_manifest(root / 'target_train.json'), 'target', True,
-                              target_image_labels_allowed=target_image_labels_allowed)
-    source_sampler = InfiniteSourceSampler(len(source), seed + 101, source_samples_consumed)
-    target_sampler = EqualDensitySampler(target.records, seed + 202, target_samples_consumed)
+                              target_image_labels_allowed=target_image_labels_allowed,
+                              strong_weak_enabled=strong_weak_enabled)
+    source_sampler = InfiniteSourceSampler(len(source), seed + 101, source_samples_consumed,
+                                           enable_aug_seed=strong_weak_enabled)
+    target_sampler = EqualDensitySampler(target.records, seed + 202, target_samples_consumed,
+                                         enable_aug_seed=strong_weak_enabled)
     options = dict(num_workers=num_workers, collate_fn=list_collate, pin_memory=True)
     if num_workers:
         options['persistent_workers'] = True

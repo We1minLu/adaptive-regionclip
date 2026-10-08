@@ -16,7 +16,8 @@ import numpy as np
 import torch
 
 from amp_step import atomic_amp_step
-from continuation import validate_resume, grl_progress, format_evaluation, validate_evaluation_supervision
+from continuation import (validate_resume, grl_progress, format_evaluation,
+                          validate_evaluation_supervision, consistency_settings)
 from checkpoint_identity import same_sources
 
 
@@ -95,7 +96,36 @@ def optimizer_for(model, cfg):
                               weight_decay=cfg["aux_weight_decay"])], detector_params + auxiliary_params
 
 
+def validate_ema_step(model, step):
+    """A fresh EMA run advances its teacher once per successful global step."""
+    if not getattr(model, "image_consistency_enabled", False):
+        return
+    count = getattr(model, "ema_updates", None)
+    if type(count) is not int or type(step) is not int or count < 0 or count != step:
+        raise ValueError("EMA update count must equal checkpoint step: %r != %r" % (count, step))
+
+
+def consistency_metadata(model, cfg):
+    settings = consistency_settings(cfg)
+    enabled = bool(getattr(model, "image_consistency_enabled", False))
+    if enabled != settings["image_consistency_enabled"]:
+        raise ValueError("Model/config image_consistency_enabled differs")
+    if settings["evaluation_model"] != "student":
+        raise ValueError("This evaluator only reports evaluation_model=student")
+    result = {key: settings[key] for key in ("image_consistency_enabled", "strong_weak_enabled",
+              "semantic_teacher_mode", "evaluation_model")}
+    if enabled:
+        count = getattr(model, "ema_updates", None)
+        if type(count) is not int or count < 0:
+            raise ValueError("EMA update count must be a nonnegative integer")
+        result.update(ema_decay=settings["ema_decay"], ema_updates=count,
+                      image_aggregation=settings["image_aggregation"],
+                      image_consistency_weight=settings["image_consistency_weight"])
+    return result
+
+
 def save_checkpoint(model, optimizers, scaler, cfg, output, step, runtime, final=False):
+    validate_ema_step(model, step)
     state = {"version": 1, "step": step, "model": model.checkpoint_state(),
              "optimizers": [opt.state_dict() for opt in optimizers], "scaler": scaler.state_dict(),
              "rng": rng_state(), "config": cfg, "runtime": runtime}
@@ -121,7 +151,8 @@ def make_loaders(cfg, start_step):
                          seed=cfg["seed"],
                          source_samples_consumed=start_step * cfg["accumulation_steps"] * batch,
                          target_samples_consumed=start_step * cfg["accumulation_steps"] * batch,
-                         target_image_labels_allowed=cfg.get("target_image_labels_allowed", True))
+                         target_image_labels_allowed=cfg.get("target_image_labels_allowed", True),
+                         strong_weak_enabled=cfg.get("strong_weak_enabled", False))
 
 
 def train_update(model, batches, optimizers, scaler, cfg, progress, step, output):
@@ -161,8 +192,18 @@ def train_update(model, batches, optimizers, scaler, cfg, progress, step, output
         result = atomic_amp_step(optimizers, scaler, named_parameters,
                                  max_norm=cfg["gradient_clip_norm"])
         if result["did_step"]:
+            # Use the just-updated student once per successful optimizer step.
+            # Updating in forward, per microbatch, or on overflow would break
+            # the existing same-batch/RNG retry and teacher time scale.
+            teacher_updated = bool(getattr(model, "image_consistency_enabled", False))
+            if teacher_updated:
+                model.update_teacher()
+                stats["ema_teacher_update_applied"] = True
+                if hasattr(model, "ema_updates"):
+                    stats["ema_updates"] = int(model.ema_updates)
             return dict(losses=sums, stats=stats, density_counts=density_counts,
-                        support_per_micro=support_per_micro, retries=attempt, **result)
+                        support_per_micro=support_per_micro, retries=attempt,
+                        teacher_updated=teacher_updated, **result)
         event = dict(step=step, attempt=attempt + 1, retry_limit=retry_limit,
                      time=time.time(), image_ids=[{
                          "source": [r["image_id"] for r in source],
@@ -185,6 +226,7 @@ def train_update(model, batches, optimizers, scaler, cfg, progress, step, output
 
 def publish_evaluation(model, cfg, output, step, result, scope="current"):
     """Publish only complete evaluation; preserve one explicitly selected best model."""
+    validate_ema_step(model, step)
     print(format_evaluation(step, result, scope=scope), flush=True)
     if not (result.get("complete") is True and result.get("images") == 1500
             and result.get("expected_images") == 1500):
@@ -260,6 +302,7 @@ def run_training(cfg, smoke=False, smoke_steps=6, resume=None, eval_smoke=True):
             raise ValueError("Resume fixed-source fingerprints differ")
         resume_audit = validate_resume(old, cfg, checkpoint["step"], verified_sources=True)
         model.load_checkpoint_state(checkpoint["model"])
+        validate_ema_step(model, checkpoint["step"])
         for opt, saved in zip(optimizers, checkpoint["optimizers"]):
             opt.load_state_dict(saved)
         scaler.load_state_dict(checkpoint["scaler"])
@@ -268,6 +311,7 @@ def run_training(cfg, smoke=False, smoke_steps=6, resume=None, eval_smoke=True):
         previous_runtime = checkpoint.get("runtime", {})
         atomic_json(output / "resume_audit.json", dict(resume_audit, checkpoint=str(resume),
                     restored_step=start_step, scaler=scaler.state_dict(), runtime=previous_runtime,
+                    **consistency_metadata(model, cfg),
                     optimizer_state_counts=[len(o.state) for o in optimizers],
                     restored_optimizer_lrs=[o.param_groups[0]["lr"] for o in optimizers],
                     source_samples_consumed=start_step*cfg["accumulation_steps"]*cfg["microbatch_per_domain"],
@@ -343,6 +387,7 @@ def run_training(cfg, smoke=False, smoke_steps=6, resume=None, eval_smoke=True):
                        lr_detector=optimizers[0].param_groups[0]["lr"], lr_aux=optimizers[1].param_groups[0]["lr"],
                        gradient_norm=float(grad_norm), amp_scale=scaler.get_scale(), skipped=bool(skipped),
                        amp_retries=result["retries"], successful_updates=successful_updates,
+                       ema_teacher_updated=result["teacher_updated"],
                        peak_allocated_GiB=torch.cuda.max_memory_allocated() / 2**30,
                        peak_reserved_GiB=torch.cuda.max_memory_reserved() / 2**30,
                        grl_progress=progress, latest_evaluation=latest_evaluation,
@@ -384,12 +429,14 @@ def run_training(cfg, smoke=False, smoke_steps=6, resume=None, eval_smoke=True):
                    peak_allocated_GiB=torch.cuda.max_memory_allocated() / 2**30,
                    peak_reserved_GiB=torch.cuda.max_memory_reserved() / 2**30,
                    effective_images_per_domain=cfg["microbatch_per_domain"] * cfg["accumulation_steps"])
+    summary.update(consistency_metadata(model, cfg))
     if smoke and eval_smoke and not stop_request["requested"]:
         # Three fog densities, two scenes. Metric here only validates evaluator I/O.
         summary["evaluation_smoke"] = run_evaluation(model, cfg, output / "eval_smoke", max_images=6)
         reloaded = torch.load(str(output / "checkpoint_last.pth"), map_location="cpu")
         model.load_checkpoint_state(reloaded["model"])
         assert reloaded["step"] == last_step
+        validate_ema_step(model, last_step)
         summary["checkpoint_reload_passed"] = True
     atomic_json(output / "summary.json", summary)
     atomic_json(output / "status.json", summary)
@@ -429,6 +476,7 @@ def run_evaluation(model, cfg, output, max_images=None):
                       target_image_labels_used_in_training=cfg["target_image_labels_allowed"],
                       evaluation_GT_used_for_training=False,
                       validation_metrics_used_for_exploration_and_auxiliary_best=True)
+        result.update(consistency_metadata(model, cfg))
         result.pop("target_used_for_selection",None)
         result.pop("target_used_for_training",None)
         atomic_json(Path(output)/"metrics.json",result)
