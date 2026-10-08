@@ -1,4 +1,4 @@
-# 强弱增强＋EMA 图像级一致性（待 GPU 验证）
+# 强弱增强＋EMA 图像级一致性
 
 在已完成的无监督 VGS＋DA 版本上新增教师—学生图像级学习。原 UDA 的最高混合 AP50 为 56.19；**这不是本轮新方法的成绩**。本轮从相同 SourceB＋源域 VGS 初始化重新训练 25K，每 1K 评估三种雾浓度混合的 1,500 张验证图；主评估对象仍是学生。
 
@@ -30,7 +30,7 @@
 
 ## 配置与验证
 
-配置：[configs/ema_image_25k.json](configs/ema_image_25k.json)。源/目标微批各 2，SGD 学习率 0.0005，辅助 AdamW 0.0002，其余训练预算沿用 UDA。初始采用 ROI chunk128＋res5 checkpoint，实际显存与吞吐量须由 GPU smoke 确认。
+配置：[configs/ema_image_25k.json](configs/ema_image_25k.json)。源/目标微批各 2，SGD 学习率 0.0005，辅助 AdamW 0.0002，其余训练预算沿用 UDA。V100 32GB 上 GPU smoke 已验证：学生 ROI chunk512、教师 chunk256，关闭 res5 checkpoint；每步约 2.3 秒，峰值已分配显存约 11.2 GiB，优于初始 chunk128＋checkpoint 的约 2.65 秒。增强、batch、学习率和损失权重均不因这次吞吐量调优改变。
 
 增强种子由样本序号确定，续训不依赖 worker 预取进度。EMA 不在前向、梯度累积或 AMP 溢出重试时更新；checkpoint 保存完整教师状态与更新次数。新版 checkpoint 与原固定教师版本区分，不能将旧权重当完整断点恢复。
 
