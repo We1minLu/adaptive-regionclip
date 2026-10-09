@@ -1,0 +1,32 @@
+{
+  "training_code_commit": "f826bd6f898bbd1c234285fbea19ee9b72010bd3",
+  "runtime_files_sha256": {
+    "amp_step.py": "6b7100afcc2939e60116644003b443cbfc5b1a869919d6971f8c6115b1eeb853",
+    "augmentation.py": "a7509acbc58563e346fe710e0e4dd666141efefcfda7905bf6afe92d5cea4c8c",
+    "checkpoint_identity.py": "53224c182bce9b86003a0d46bae3436da46e9c6fe49b0b4b4e9a15570b972cbf",
+    "continuation.py": "0983673ee36a89fa07e9b0d1d8756e2089a87c532742acc7363b1803a6d0041e",
+    "data.py": "e9a03a161fe9bc89d6fde2a82d584cf55349cb4ce3dcf6e48115047021194fdd",
+    "domain_core.py": "c197fe94c4fdf6648501db510bdacfeca541efaab4e295b5e514ec67bf52a3b6",
+    "ema.py": "d638fd9ac7c153f632deea70cdff46e0f13705c40f11768d7a86bac6533ee8a0",
+    "evaluation.py": "ac5b963cd02e3a444ba53f20347c710cd38a7f477cd0a957d27e6be4651aa91d",
+    "image_consistency.py": "9b99ed8e2e4bd258fbc853d027c5adcacc245e702c0cd8062d6325b71a335376",
+    "model.py": "8fb03a62bcfe6d75be8b1367a6e9c0b3a9f96756571767cb9c5d635061f34755",
+    "search_core.py": "a0f5fc37ce1b547387a67d4e5b5e6c454363d2d773856ae86c77fad82d99f9b1",
+    "train.py": "b1a31c37f281304601d043ace231f1ad03a036e67709e82f6a1f79eb44e1d1b4"
+  },
+  "published_runtime_matches_training": true,
+  "preset_matches_actual_training_config": true,
+  "target_image_labels_used": false,
+  "target_box_annotations_used_for_training": false,
+  "target_pseudo_box_losses": false,
+  "image_consistency_weight": 1.0,
+  "ema_decay": 0.9996,
+  "evaluation_output": "student detections; EMA teacher retained for semantic maps",
+  "source_initialization": "SourceB and source-supervised VGS; fresh run, not UDA checkpoint continuation",
+  "data_manifest_sha256": {
+    "source_train.json": "e23457b8e1c7830b000ace01463a3a167c46ddd228e07307070d3560b0cbf732",
+    "target_train.json": "505f35dc76de79d9df3613ab6efac38cd117425b4f388a39d36007aa32e62751",
+    "eval_mixed.json": "671d6805feddac71357c5cc12e94389b62385d38b70e1f2b1f17ec598c149ca6"
+  },
+  "publication_only_code_change": "configure.py adds the ema_image_25k CLI preset; runtime implementation unchanged"
+}

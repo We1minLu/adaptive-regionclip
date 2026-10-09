@@ -1,83 +1,75 @@
-# VGS＋域适应：目标域无标签版本
+# VGS＋域适应＋EMA 图像级一致性（无监督）
 
-新增实验：见 [强弱增强＋EMA 图像级一致性](EMA_IMAGE_CONSISTENCY.md)，使用独立的 `ema_image_25k.json` 配置。下文 56.19 的结果属于原固定教师 UDA，不代表新增实验效果。
+当前版本在固定教师 VGS＋DA 基线上加入 Adaptive Teacher 风格的强弱增强、EMA 0.9996，以及权重 1.0 的 H2FA 图像级软一致性。目标域不使用真实图像类别或框标签，没有目标伪框分类/回归监督。
 
-Cityscapes → Foggy Cityscapes 八类检测。源域有完整 GT；目标域仅用图像与域身份，不使用图像级类别标签或目标框。源域 2,975 张、目标域三种雾浓度共 8,925 张；从原 SourceB 与源域监督训练的 VGS 初始化开始，未从有目标标签的 AP55.98 模型续训。
+源域 2,975 张，目标域三种雾浓度共 8,925 张；从相同 SourceB 与源域监督 VGS 初始化，重新训练 25K。网络、损失与结果概览见[项目首页](../../README.md)；聚合公式、教师更新和梯度边界见[实现说明](EMA_IMAGE_CONSISTENCY.md)。
 
-## 结构与教师预测
-
-- **固定 RPN**：最多保留前 300 个候选 B0。
-- **固定 SourceB 教师**：为 B0 产生八类＋背景概率。教师由源域模型复制并冻结，没有 EMA 更新。
-- **VGS**：在线 C3/C4 视觉特征 V，结合候选几何/覆盖 G 五通道、教师概率与语义分歧 S 十通道，预测目标性、遗漏概率与框偏移；按目标性×遗漏概率排序，经去重/NMS 补充最多 200 框。
-- **学生 ROI**：合并原始与补充候选，学习实际 ROI 视觉特征和框回归。C3/C4/res5/注意力池化按源模型原可训练范围更新；文本/背景分类器、教师、RPN 固定。源域 GT 同时训练检测与 VGS；候选坐标及语义图停止梯度。
-
-使用教师软概率构造语义图，并以高置信预测类别作为条件对抗的伪类别。**没有目标域伪框分类或回归损失，也没有目标域 VGS 的框监督**。UDA 仅取消目标图像类别存在性过滤，教师类别概率 ≥0.7、RPN 概率 ≥0.5 的筛选与原分组、排序和预算均保留。目标训练输入若含 `image_labels` 或框字段，会被拒绝；源域仍允许由 GT 提供类别存在性。
-
-## 域对抗与权重
-
-两类目标，共三个判别器网络：
-
-| 对抗目标 | 判别器与输入 | 总损失外层权重 | GRL 系数 |
-|---|---|---:|---|
-| 传统域对抗 | C3、C4 各一个卷积判别器；全特征图 | 两头损失平均后 ×0.1 | `r(t)` |
-| 条件域对抗 | VGS 语义融合前 p3/p4 的 ROI 视觉特征；一个条件 MLP | 1.0 | `0.05*r(t)` |
-
-条件 MLP 含 48 个条件输出（8 类×3 尺度×2 冗余组），按每个 ROI 的条件取一个输出；不是 48 套独立网络。仅对源/目标共同出现的条件组计算组间等权、域间各半的 BCE。其对抗梯度进入 VGS lateral3/4 及学生视觉骨干。
-
-总损失为：
-
-`L = 1.0*L_source_detection + 1.0*L_source_VGS + 0.1*(L_C3 + L_C4)/2 + 1.0*L_conditional`
-
-其中 `p=clip(t/25000,0,1)`，`r(t)=2/(1+exp(-10*p))-1`；每层传统损失也对源/目标取平均。GRL 只反转并缩放特征侧梯度，不缩放判别器自身梯度。因此条件损失权重是 **1.0**，不是 0.05；0.05 是其特征侧对抗强度上限。源域 VGS 的目标性、遗漏和框损失外层系数均为 1.0。
-
-## 已完成结果
-
-25K 更新，每 1K 在全部 1,500 张验证图上评估（500 场景×三种浓度 0.005/0.01/0.02），采用仓库原生 VOC2007 十一点 AP，混合 AP 由全部预测合并计算。
+## 结果
 
 | 检查点 | 混合 AP50 | AP75 | 轻雾 AP50 | 中雾 AP50 | 浓雾 AP50 |
 |---|---:|---:|---:|---:|---:|
-| 9K：验证集最佳 | **56.19** | 34.30 | 60.95 | 57.58 | 50.23 |
-| 25K：固定终点 | 55.93 | 33.66 | 60.43 | 57.95 | 49.32 |
+| **8K：验证集最佳** | **58.36** | 35.00 | 62.12 | 59.38 | 53.81 |
+| 25K：固定终点 | 55.19 | 33.56 | 59.62 | 55.65 | 50.20 |
 
-精确最佳为 **56.187524**，终点为 **55.932228**；[完整曲线](results/uda_25k.json)。9K 是验证集选优的探索结果，25K 是固定预算终点。历史有图像级标签版本为 55.975298；原运行中曾调整 ROI chunk、修复 AMP，本轮沿用最终稳定设置，尚不能将差异单独归因于去掉标签。
+精确 AP50 为 **58.356487 / 55.190529**。每 1K 在三雾混合 val 的全部 1,500 张图上评估，使用 VOC2007 十一点 AP；最佳点按混合 AP50 选择。相比[前轮固定教师 UDA](UDA_FIXED_TEACHER.md)，最佳提高 2.17 点、终点下降 0.74 点，组合改动的单项贡献尚待消融。[完整曲线](results/ema_image_25k.json)。
 
-## 运行
+## 参数和复现
 
-已验证环境：Python 3.8、PyTorch 1.9.0+cu111、对应 torchvision、本仓库 Detectron2，需要 GPU 和 OpenAI CLIP RN50 缓存。环境与数据安装参考[原项目说明](../../docs/legacy_adapters_README.md)。
+已验证环境：Python 3.8、PyTorch 1.9.0+cu111、torchvision 0.10.0+cu111、本仓库 Detectron2，V100 32GB。模型构造需要 GPU 和 OpenAI CLIP RN50 缓存；环境/数据安装见[原项目说明](../../docs/legacy_adapters_README.md)。
 
-先保留原源域/评估清单及目标图像顺序，并生成只含图像信息的目标训练清单；不复制标签侧文件。原清单可由 `prepare_data.py` 生成，准备步骤中产生的旧目标标签不进入 UDA 训练。
+| 参数 | 设置 |
+|---|---|
+| 初始化 | SourceB 检测权重＋源域监督 VGS；不从旧 UDA 最佳点续训 |
+| 训练 / 评估 | 25K / 每 1K，评估学生输出（保留 EMA 语义供图） |
+| batch / 分辨率 | 源域 2＋目标域 2，累积 1，1024×2048 |
+| 检测器 / 辅助优化器 | SGD 0.0005、momentum 0.9 / AdamW 0.0002 |
+| 权重衰减 / 调度 | 均 0.0001；1K 预热，起始倍率 0.01，其后恒定 |
+| EMA / 图像 BCE | 0.9996 / 1.0；软教师目标，无额外 burn-in |
+| 候选 / ROI | RPN≤300＋VGS≤200；源域 ROI 采样预算 512，不追加 GT 框 |
+| 推理 | ROI 分数阈值 0.001、NMS 0.5、每图最多 100 检测 |
+| 执行设置 | AMP；梯度裁剪 10；学生/教师 ROI chunk 512/256；不启用 res5 checkpoint |
+| 对抗 | 传统外层 0.1、GRL `r(t)`；条件外层 1.0、GRL `0.05*r(t)` |
+
+沿用无目标标签清单；目标记录若含真实图像标签或框标注，会被拒绝。已有 UDA 清单可直接使用。若从旧有标签清单转换：
 
 ```bash
 python experiments/vgs_da/prepare_uda.py \
   --input-dir /data/vgs_da/original_manifests \
   --output-dir /data/vgs_uda/manifests
+```
 
+使用新预设并指定本机资产路径：
+
+```bash
 python experiments/vgs_da/configure.py \
-  --preset uda_25k --repo-root "$PWD" \
-  --manifest-dir /data/vgs_uda/manifests --output-dir /data/vgs_uda/run \
+  --preset ema_image_25k --repo-root "$PWD" \
+  --manifest-dir /data/vgs_uda/manifests --output-dir /data/vgs_ema_image/run \
   --source-checkpoint /data/weights/source_B.pth \
   --source-search-checkpoint /data/weights/source_vgs.pt \
   --rpn-checkpoint /data/weights/rpn_coco_48.pth \
   --text-embeddings /data/weights/cityscapes_8_cls_emb.pth \
-  --config-out /data/vgs_uda/config.json
+  --config-out /data/vgs_ema_image/config.json
 
-python experiments/vgs_da/train.py --config /data/vgs_uda/config.json \
-  --mode smoke --steps 6 --output /data/vgs_uda/smoke
-python -u experiments/vgs_da/train.py --config /data/vgs_uda/config.json --mode train
+python experiments/vgs_da/train.py --config /data/vgs_ema_image/config.json \
+  --mode smoke --steps 6 --output /data/vgs_ema_image/smoke
+python experiments/vgs_da/train.py --config /data/vgs_ema_image/config.json \
+  --mode smoke --steps 2 --output /data/vgs_ema_image/smoke \
+  --resume /data/vgs_ema_image/smoke/checkpoint_last.pth
+python -u experiments/vgs_da/train.py --config /data/vgs_ema_image/config.json --mode train
 ```
 
-源域 2 张＋目标域 2 张，SGD 学习率 0.0005，辅助模块 AdamW 学习率 0.0002，预热 1K 后恒定。评估 XML 位于 `datasets/foggy_cityscapes_voc/VOC2007/Annotations/`。旧 `formal_25k`、`early_5k`、`extend_35k` 预设仍保留有图像级标签协议；无监督实验请明确使用 `uda_25k`。
+`configure.py` 校验所有固定源资产内容，不会覆盖不同配置。旧 `uda_25k` 仍是固定教师版本；新增实验必须明确选择 `ema_image_25k`。强弱增强使用可恢复的样本种子，AMP 溢出重试不推进 EMA；完整断点保存教师状态、两个优化器、scaler 与 RNG。不能把旧固定教师权重当作新版本完整断点恢复。
 
-完整断点用 `--resume /path/to/checkpoint_last.pth` 恢复，要求监督策略、固定权重内容和数据清单字节一致。不能从有图像级标签的旧断点恢复为 UDA。已通过 53 项测试、6 次 GPU smoke 更新、三雾评估读写与断点重载。
+已通过 97 项远程 CPU 测试、10 项 GPU 测试，以及真实训练、评估和 EMA 断点恢复 smoke；新增配置发布入口另有 5 项 CPU 测试。正式运行完成 25,000 次成功更新，无跳过更新；完整记录见[结果摘要](results/ema_image_25k.json)。
 
 ## 权重
 
-9K 最佳推理权重：`/root/autodl-tmp/checkpoints/vgs_uda_ap5619_9k/model_best_ap5619.pth`。25K 推理与完整续训断点仍位于 `/root/autodl-tmp/formal_vgs_uda_20261007/run/`，文件分别为 `model_final.pth` 和 `checkpoint_last.pth`。9K 最佳文件不含优化器状态，不能作为完整训练断点。
-
-固定 SourceB/RPN/文本/VGS 初始化依赖共用 `/root/autodl-tmp/checkpoints/vgs_da_ap5598_25k/fixed_assets/`；迁移时保持内容校验值一致。[无监督权重清单](results/uda_weight_manifest.json)记录最佳权重 SHA256。大权重不进入 Git。
+最佳权重、固定依赖和 SHA256 见[权重清单](results/ema_image_weight_manifest.json)。最佳 8K 文件包含学生与 EMA 教师，**不含优化器状态**；25K 的 `checkpoint_last.pth` 才是完整续训断点。大权重不进入 Git。
 
 ```bash
-python experiments/vgs_da/train.py --config /data/vgs_uda/config.json \
-  --mode evaluate --resume /path/to/model_best_ap5619.pth \
-  --output /data/vgs_uda/best_evaluation
+python experiments/vgs_da/train.py --config /data/vgs_ema_image/config.json \
+  --mode evaluate --resume /path/to/model_best_ap5836.pth \
+  --output /data/vgs_ema_image/best_evaluation
 ```
+
+历史版本与成绩独立保留：[固定教师 UDA，AP56.19](UDA_FIXED_TEACHER.md)、[图像标签版本，AP55.98](../../docs/vgs_image_labels_AP5598.md)。

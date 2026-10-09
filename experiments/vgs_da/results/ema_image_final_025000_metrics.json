@@ -1,0 +1,3878 @@
+{
+  "complete": true,
+  "metric": "repository_native_VOC2007_11point",
+  "units": "AP percent",
+  "images": 1500,
+  "scenes": 500,
+  "density_counts": {
+    "0.005": 500,
+    "0.01": 500,
+    "0.02": 500
+  },
+  "complete_three_density_pairing": true,
+  "pooled": {
+    "images": 1500,
+    "AP": 34.246639745496815,
+    "AP50": 55.190529198968065,
+    "AP75": 33.55987465745546,
+    "by_iou": {
+      "50": {
+        "AP": 55.190529198968065,
+        "per_class": [
+          {
+            "label": 0,
+            "name": "person",
+            "gt": 10257,
+            "AP": 59.11242762704274,
+            "tp": 7211,
+            "fp": 48806,
+            "duplicate_fp": 766,
+            "ignored": 0,
+            "detections": 56017
+          },
+          {
+            "label": 1,
+            "name": "rider",
+            "gt": 1668,
+            "AP": 64.48811339648694,
+            "tp": 1234,
+            "fp": 3739,
+            "duplicate_fp": 153,
+            "ignored": 0,
+            "detections": 4973
+          },
+          {
+            "label": 2,
+            "name": "car",
+            "gt": 14001,
+            "AP": 69.50473966952885,
+            "tp": 11067,
+            "fp": 53474,
+            "duplicate_fp": 1168,
+            "ignored": 0,
+            "detections": 64541
+          },
+          {
+            "label": 3,
+            "name": "truck",
+            "gt": 279,
+            "AP": 40.29529469069949,
+            "tp": 172,
+            "fp": 3801,
+            "duplicate_fp": 44,
+            "ignored": 0,
+            "detections": 3973
+          },
+          {
+            "label": 4,
+            "name": "bus",
+            "gt": 294,
+            "AP": 55.606277671295224,
+            "tp": 202,
+            "fp": 773,
+            "duplicate_fp": 8,
+            "ignored": 0,
+            "detections": 975
+          },
+          {
+            "label": 5,
+            "name": "train",
+            "gt": 69,
+            "AP": 42.00032583903551,
+            "tp": 36,
+            "fp": 364,
+            "duplicate_fp": 3,
+            "ignored": 0,
+            "detections": 400
+          },
+          {
+            "label": 6,
+            "name": "motorcycle",
+            "gt": 447,
+            "AP": 52.445824625342055,
+            "tp": 299,
+            "fp": 2407,
+            "duplicate_fp": 46,
+            "ignored": 0,
+            "detections": 2706
+          },
+          {
+            "label": 7,
+            "name": "bicycle",
+            "gt": 3525,
+            "AP": 58.0712300723137,
+            "tp": 2545,
+            "fp": 13870,
+            "duplicate_fp": 420,
+            "ignored": 0,
+            "detections": 16415
+          }
+        ],
+        "tp": 22766,
+        "fp": 127234
+      },
+      "55": {
+        "AP": 53.34753923049614,
+        "per_class": [
+          {
+            "label": 0,
+            "name": "person",
+            "gt": 10257,
+            "AP": 55.80696349132278,
+            "tp": 6784,
+            "fp": 49233,
+            "duplicate_fp": 334,
+            "ignored": 0,
+            "detections": 56017
+          },
+          {
+            "label": 1,
+            "name": "rider",
+            "gt": 1668,
+            "AP": 63.02926014924769,
+            "tp": 1202,
+            "fp": 3771,
+            "duplicate_fp": 61,
+            "ignored": 0,
+            "detections": 4973
+          },
+          {
+            "label": 2,
+            "name": "car",
+            "gt": 14001,
+            "AP": 68.42735592607997,
+            "tp": 10603,
+            "fp": 53938,
+            "duplicate_fp": 531,
+            "ignored": 0,
+            "detections": 64541
+          },
+          {
+            "label": 3,
+            "name": "truck",
+            "gt": 279,
+            "AP": 39.621992801817704,
+            "tp": 168,
+            "fp": 3805,
+            "duplicate_fp": 24,
+            "ignored": 0,
+            "detections": 3973
+          },
+          {
+            "label": 4,
+            "name": "bus",
+            "gt": 294,
+            "AP": 54.85344150508177,
+            "tp": 196,
+            "fp": 779,
+            "duplicate_fp": 3,
+            "ignored": 0,
+            "detections": 975
+          },
+          {
+            "label": 5,
+            "name": "train",
+            "gt": 69,
+            "AP": 42.00032583903551,
+            "tp": 36,
+            "fp": 364,
+            "duplicate_fp": 3,
+            "ignored": 0,
+            "detections": 400
+          },
+          {
+            "label": 6,
+            "name": "motorcycle",
+            "gt": 447,
+            "AP": 49.658418492614224,
+            "tp": 276,
+            "fp": 2430,
+            "duplicate_fp": 17,
+            "ignored": 0,
+            "detections": 2706
+          },
+          {
+            "label": 7,
+            "name": "bicycle",
+            "gt": 3525,
+            "AP": 53.382555638769446,
+            "tp": 2395,
+            "fp": 14020,
+            "duplicate_fp": 185,
+            "ignored": 0,
+            "detections": 16415
+          }
+        ],
+        "tp": 21660,
+        "fp": 128340
+      },
+      "60": {
+        "AP": 49.913504677362866,
+        "per_class": [
+          {
+            "label": 0,
+            "name": "person",
+            "gt": 10257,
+            "AP": 51.51423038202372,
+            "tp": 6186,
+            "fp": 49831,
+            "duplicate_fp": 120,
+            "ignored": 0,
+            "detections": 56017
+          },
+          {
+            "label": 1,
+            "name": "rider",
+            "gt": 1668,
+            "AP": 58.977655465514545,
+            "tp": 1159,
+            "fp": 3814,
+            "duplicate_fp": 22,
+            "ignored": 0,
+            "detections": 4973
+          },
+          {
+            "label": 2,
+            "name": "car",
+            "gt": 14001,
+            "AP": 65.09847800497582,
+            "tp": 10005,
+            "fp": 54536,
+            "duplicate_fp": 188,
+            "ignored": 0,
+            "detections": 64541
+          },
+          {
+            "label": 3,
+            "name": "truck",
+            "gt": 279,
+            "AP": 35.63666508639101,
+            "tp": 153,
+            "fp": 3820,
+            "duplicate_fp": 7,
+            "ignored": 0,
+            "detections": 3973
+          },
+          {
+            "label": 4,
+            "name": "bus",
+            "gt": 294,
+            "AP": 53.9443159275523,
+            "tp": 189,
+            "fp": 786,
+            "duplicate_fp": 1,
+            "ignored": 0,
+            "detections": 975
+          },
+          {
+            "label": 5,
+            "name": "train",
+            "gt": 69,
+            "AP": 40.68218845344945,
+            "tp": 35,
+            "fp": 365,
+            "duplicate_fp": 1,
+            "ignored": 0,
+            "detections": 400
+          },
+          {
+            "label": 6,
+            "name": "motorcycle",
+            "gt": 447,
+            "AP": 44.83075968343234,
+            "tp": 252,
+            "fp": 2454,
+            "duplicate_fp": 4,
+            "ignored": 0,
+            "detections": 2706
+          },
+          {
+            "label": 7,
+            "name": "bicycle",
+            "gt": 3525,
+            "AP": 48.62374441556373,
+            "tp": 2147,
+            "fp": 14268,
+            "duplicate_fp": 66,
+            "ignored": 0,
+            "detections": 16415
+          }
+        ],
+        "tp": 20126,
+        "fp": 129874
+      },
+      "65": {
+        "AP": 44.82009260184418,
+        "per_class": [
+          {
+            "label": 0,
+            "name": "person",
+            "gt": 10257,
+            "AP": 47.15653111050908,
+            "tp": 5536,
+            "fp": 50481,
+            "duplicate_fp": 20,
+            "ignored": 0,
+            "detections": 56017
+          },
+          {
+            "label": 1,
+            "name": "rider",
+            "gt": 1668,
+            "AP": 56.987176978158175,
+            "tp": 1081,
+            "fp": 3892,
+            "duplicate_fp": 5,
+            "ignored": 0,
+            "detections": 4973
+          },
+          {
+            "label": 2,
+            "name": "car",
+            "gt": 14001,
+            "AP": 60.66568475388656,
+            "tp": 9280,
+            "fp": 55261,
+            "duplicate_fp": 39,
+            "ignored": 0,
+            "detections": 64541
+          },
+          {
+            "label": 3,
+            "name": "truck",
+            "gt": 279,
+            "AP": 33.13856507225748,
+            "tp": 141,
+            "fp": 3832,
+            "duplicate_fp": 1,
+            "ignored": 0,
+            "detections": 3973
+          },
+          {
+            "label": 4,
+            "name": "bus",
+            "gt": 294,
+            "AP": 53.66591190889499,
+            "tp": 184,
+            "fp": 791,
+            "duplicate_fp": 0,
+            "ignored": 0,
+            "detections": 975
+          },
+          {
+            "label": 5,
+            "name": "train",
+            "gt": 69,
+            "AP": 24.11116817896479,
+            "tp": 27,
+            "fp": 373,
+            "duplicate_fp": 0,
+            "ignored": 0,
+            "detections": 400
+          },
+          {
+            "label": 6,
+            "name": "motorcycle",
+            "gt": 447,
+            "AP": 40.052246361438094,
+            "tp": 220,
+            "fp": 2486,
+            "duplicate_fp": 1,
+            "ignored": 0,
+            "detections": 2706
+          },
+          {
+            "label": 7,
+            "name": "bicycle",
+            "gt": 3525,
+            "AP": 42.78345645064429,
+            "tp": 1916,
+            "fp": 14499,
+            "duplicate_fp": 16,
+            "ignored": 0,
+            "detections": 16415
+          }
+        ],
+        "tp": 18385,
+        "fp": 131615
+      },
+      "70": {
+        "AP": 39.57046104893503,
+        "per_class": [
+          {
+            "label": 0,
+            "name": "person",
+            "gt": 10257,
+            "AP": 41.25142134940537,
+            "tp": 4834,
+            "fp": 51183,
+            "duplicate_fp": 2,
+            "ignored": 0,
+            "detections": 56017
+          },
+          {
+            "label": 1,
+            "name": "rider",
+            "gt": 1668,
+            "AP": 50.35116644498802,
+            "tp": 965,
+            "fp": 4008,
+            "duplicate_fp": 0,
+            "ignored": 0,
+            "detections": 4973
+          },
+          {
+            "label": 2,
+            "name": "car",
+            "gt": 14001,
+            "AP": 55.09680741952191,
+            "tp": 8436,
+            "fp": 56105,
+            "duplicate_fp": 0,
+            "ignored": 0,
+            "detections": 64541
+          },
+          {
+            "label": 3,
+            "name": "truck",
+            "gt": 279,
+            "AP": 29.911447090789494,
+            "tp": 117,
+            "fp": 3856,
+            "duplicate_fp": 0,
+            "ignored": 0,
+            "detections": 3973
+          },
+          {
+            "label": 4,
+            "name": "bus",
+            "gt": 294,
+            "AP": 49.20136911200311,
+            "tp": 173,
+            "fp": 802,
+            "duplicate_fp": 0,
+            "ignored": 0,
+            "detections": 975
+          },
+          {
+            "label": 5,
+            "name": "train",
+            "gt": 69,
+            "AP": 21.680558247722427,
+            "tp": 25,
+            "fp": 375,
+            "duplicate_fp": 0,
+            "ignored": 0,
+            "detections": 400
+          },
+          {
+            "label": 6,
+            "name": "motorcycle",
+            "gt": 447,
+            "AP": 32.96482325893137,
+            "tp": 182,
+            "fp": 2524,
+            "duplicate_fp": 0,
+            "ignored": 0,
+            "detections": 2706
+          },
+          {
+            "label": 7,
+            "name": "bicycle",
+            "gt": 3525,
+            "AP": 36.10609546811858,
+            "tp": 1598,
+            "fp": 14817,
+            "duplicate_fp": 0,
+            "ignored": 0,
+            "detections": 16415
+          }
+        ],
+        "tp": 16330,
+        "fp": 133670
+      },
+      "75": {
+        "AP": 33.55987465745546,
+        "per_class": [
+          {
+            "label": 0,
+            "name": "person",
+            "gt": 10257,
+            "AP": 33.31741840628561,
+            "tp": 4069,
+            "fp": 51948,
+            "duplicate_fp": 0,
+            "ignored": 0,
+            "detections": 56017
+          },
+          {
+            "label": 1,
+            "name": "rider",
+            "gt": 1668,
+            "AP": 43.32244692023454,
+            "tp": 834,
+            "fp": 4139,
+            "duplicate_fp": 0,
+            "ignored": 0,
+            "detections": 4973
+          },
+          {
+            "label": 2,
+            "name": "car",
+            "gt": 14001,
+            "AP": 51.22393031642528,
+            "tp": 7538,
+            "fp": 57003,
+            "duplicate_fp": 0,
+            "ignored": 0,
+            "detections": 64541
+          },
+          {
+            "label": 3,
+            "name": "truck",
+            "gt": 279,
+            "AP": 25.391774891774887,
+            "tp": 94,
+            "fp": 3879,
+            "duplicate_fp": 0,
+            "ignored": 0,
+            "detections": 3973
+          },
+          {
+            "label": 4,
+            "name": "bus",
+            "gt": 294,
+            "AP": 47.77510048472537,
+            "tp": 163,
+            "fp": 812,
+            "duplicate_fp": 0,
+            "ignored": 0,
+            "detections": 975
+          },
+          {
+            "label": 5,
+            "name": "train",
+            "gt": 69,
+            "AP": 16.44287915474356,
+            "tp": 19,
+            "fp": 381,
+            "duplicate_fp": 0,
+            "ignored": 0,
+            "detections": 400
+          },
+          {
+            "label": 6,
+            "name": "motorcycle",
+            "gt": 447,
+            "AP": 21.752984994038783,
+            "tp": 136,
+            "fp": 2570,
+            "duplicate_fp": 0,
+            "ignored": 0,
+            "detections": 2706
+          },
+          {
+            "label": 7,
+            "name": "bicycle",
+            "gt": 3525,
+            "AP": 29.25246209141562,
+            "tp": 1285,
+            "fp": 15130,
+            "duplicate_fp": 0,
+            "ignored": 0,
+            "detections": 16415
+          }
+        ],
+        "tp": 14138,
+        "fp": 135862
+      },
+      "80": {
+        "AP": 27.8448215054269,
+        "per_class": [
+          {
+            "label": 0,
+            "name": "person",
+            "gt": 10257,
+            "AP": 27.654605761836997,
+            "tp": 3168,
+            "fp": 52849,
+            "duplicate_fp": 0,
+            "ignored": 0,
+            "detections": 56017
+          },
+          {
+            "label": 1,
+            "name": "rider",
+            "gt": 1668,
+            "AP": 30.60462076059754,
+            "tp": 661,
+            "fp": 4312,
+            "duplicate_fp": 0,
+            "ignored": 0,
+            "detections": 4973
+          },
+          {
+            "label": 2,
+            "name": "car",
+            "gt": 14001,
+            "AP": 43.07437951576401,
+            "tp": 6572,
+            "fp": 57969,
+            "duplicate_fp": 0,
+            "ignored": 0,
+            "detections": 64541
+          },
+          {
+            "label": 3,
+            "name": "truck",
+            "gt": 279,
+            "AP": 23.40909090909091,
+            "tp": 82,
+            "fp": 3891,
+            "duplicate_fp": 0,
+            "ignored": 0,
+            "detections": 3973
+          },
+          {
+            "label": 4,
+            "name": "bus",
+            "gt": 294,
+            "AP": 45.906538087149045,
+            "tp": 150,
+            "fp": 825,
+            "duplicate_fp": 0,
+            "ignored": 0,
+            "detections": 975
+          },
+          {
+            "label": 5,
+            "name": "train",
+            "gt": 69,
+            "AP": 13.986013986013985,
+            "tp": 13,
+            "fp": 387,
+            "duplicate_fp": 0,
+            "ignored": 0,
+            "detections": 400
+          },
+          {
+            "label": 6,
+            "name": "motorcycle",
+            "gt": 447,
+            "AP": 16.532705576345315,
+            "tp": 95,
+            "fp": 2611,
+            "duplicate_fp": 0,
+            "ignored": 0,
+            "detections": 2706
+          },
+          {
+            "label": 7,
+            "name": "bicycle",
+            "gt": 3525,
+            "AP": 21.590617446617404,
+            "tp": 985,
+            "fp": 15430,
+            "duplicate_fp": 0,
+            "ignored": 0,
+            "detections": 16415
+          }
+        ],
+        "tp": 11726,
+        "fp": 138274
+      },
+      "85": {
+        "AP": 21.154947228324552,
+        "per_class": [
+          {
+            "label": 0,
+            "name": "person",
+            "gt": 10257,
+            "AP": 19.89190776296315,
+            "tp": 2181,
+            "fp": 53836,
+            "duplicate_fp": 0,
+            "ignored": 0,
+            "detections": 56017
+          },
+          {
+            "label": 1,
+            "name": "rider",
+            "gt": 1668,
+            "AP": 19.411122352298822,
+            "tp": 435,
+            "fp": 4538,
+            "duplicate_fp": 0,
+            "ignored": 0,
+            "detections": 4973
+          },
+          {
+            "label": 2,
+            "name": "car",
+            "gt": 14001,
+            "AP": 34.087271329824645,
+            "tp": 5419,
+            "fp": 59122,
+            "duplicate_fp": 0,
+            "ignored": 0,
+            "detections": 64541
+          },
+          {
+            "label": 3,
+            "name": "truck",
+            "gt": 279,
+            "AP": 21.21833084947839,
+            "tp": 67,
+            "fp": 3906,
+            "duplicate_fp": 0,
+            "ignored": 0,
+            "detections": 3973
+          },
+          {
+            "label": 4,
+            "name": "bus",
+            "gt": 294,
+            "AP": 38.23669815033451,
+            "tp": 126,
+            "fp": 849,
+            "duplicate_fp": 0,
+            "ignored": 0,
+            "detections": 975
+          },
+          {
+            "label": 5,
+            "name": "train",
+            "gt": 69,
+            "AP": 11.004784688995215,
+            "tp": 9,
+            "fp": 391,
+            "duplicate_fp": 0,
+            "ignored": 0,
+            "detections": 400
+          },
+          {
+            "label": 6,
+            "name": "motorcycle",
+            "gt": 447,
+            "AP": 11.115898319689789,
+            "tp": 51,
+            "fp": 2655,
+            "duplicate_fp": 0,
+            "ignored": 0,
+            "detections": 2706
+          },
+          {
+            "label": 7,
+            "name": "bicycle",
+            "gt": 3525,
+            "AP": 14.273564373011888,
+            "tp": 661,
+            "fp": 15754,
+            "duplicate_fp": 0,
+            "ignored": 0,
+            "detections": 16415
+          }
+        ],
+        "tp": 8949,
+        "fp": 141051
+      },
+      "90": {
+        "AP": 12.736228899585523,
+        "per_class": [
+          {
+            "label": 0,
+            "name": "person",
+            "gt": 10257,
+            "AP": 9.831610816547085,
+            "tp": 1212,
+            "fp": 54805,
+            "duplicate_fp": 0,
+            "ignored": 0,
+            "detections": 56017
+          },
+          {
+            "label": 1,
+            "name": "rider",
+            "gt": 1668,
+            "AP": 11.452000565530893,
+            "tp": 208,
+            "fp": 4765,
+            "duplicate_fp": 0,
+            "ignored": 0,
+            "detections": 4973
+          },
+          {
+            "label": 2,
+            "name": "car",
+            "gt": 14001,
+            "AP": 24.209283417669816,
+            "tp": 3873,
+            "fp": 60668,
+            "duplicate_fp": 0,
+            "ignored": 0,
+            "detections": 64541
+          },
+          {
+            "label": 3,
+            "name": "truck",
+            "gt": 279,
+            "AP": 13.636363636363635,
+            "tp": 45,
+            "fp": 3928,
+            "duplicate_fp": 0,
+            "ignored": 0,
+            "detections": 3973
+          },
+          {
+            "label": 4,
+            "name": "bus",
+            "gt": 294,
+            "AP": 22.76057276057276,
+            "tp": 85,
+            "fp": 890,
+            "duplicate_fp": 0,
+            "ignored": 0,
+            "detections": 975
+          },
+          {
+            "label": 5,
+            "name": "train",
+            "gt": 69,
+            "AP": 9.090909090909092,
+            "tp": 3,
+            "fp": 397,
+            "duplicate_fp": 0,
+            "ignored": 0,
+            "detections": 400
+          },
+          {
+            "label": 6,
+            "name": "motorcycle",
+            "gt": 447,
+            "AP": 3.6363636363636367,
+            "tp": 16,
+            "fp": 2690,
+            "duplicate_fp": 0,
+            "ignored": 0,
+            "detections": 2706
+          },
+          {
+            "label": 7,
+            "name": "bicycle",
+            "gt": 3525,
+            "AP": 7.272727272727273,
+            "tp": 335,
+            "fp": 16080,
+            "duplicate_fp": 0,
+            "ignored": 0,
+            "detections": 16415
+          }
+        ],
+        "tp": 5777,
+        "fp": 144223
+      },
+      "95": {
+        "AP": 4.328398406569424,
+        "per_class": [
+          {
+            "label": 0,
+            "name": "person",
+            "gt": 10257,
+            "AP": 4.545454545454546,
+            "tp": 266,
+            "fp": 55751,
+            "duplicate_fp": 0,
+            "ignored": 0,
+            "detections": 56017
+          },
+          {
+            "label": 1,
+            "name": "rider",
+            "gt": 1668,
+            "AP": 0.6123410268487989,
+            "tp": 32,
+            "fp": 4941,
+            "duplicate_fp": 0,
+            "ignored": 0,
+            "detections": 4973
+          },
+          {
+            "label": 2,
+            "name": "car",
+            "gt": 14001,
+            "AP": 9.274586485446852,
+            "tp": 1562,
+            "fp": 62979,
+            "duplicate_fp": 0,
+            "ignored": 0,
+            "detections": 64541
+          },
+          {
+            "label": 3,
+            "name": "truck",
+            "gt": 279,
+            "AP": 9.090909090909092,
+            "tp": 7,
+            "fp": 3966,
+            "duplicate_fp": 0,
+            "ignored": 0,
+            "detections": 3973
+          },
+          {
+            "label": 4,
+            "name": "bus",
+            "gt": 294,
+            "AP": 6.493506493506494,
+            "tp": 20,
+            "fp": 955,
+            "duplicate_fp": 0,
+            "ignored": 0,
+            "detections": 975
+          },
+          {
+            "label": 5,
+            "name": "train",
+            "gt": 69,
+            "AP": 0.0,
+            "tp": 0,
+            "fp": 400,
+            "duplicate_fp": 0,
+            "ignored": 0,
+            "detections": 400
+          },
+          {
+            "label": 6,
+            "name": "motorcycle",
+            "gt": 447,
+            "AP": 0.06493506493506493,
+            "tp": 1,
+            "fp": 2705,
+            "duplicate_fp": 0,
+            "ignored": 0,
+            "detections": 2706
+          },
+          {
+            "label": 7,
+            "name": "bicycle",
+            "gt": 3525,
+            "AP": 4.545454545454546,
+            "tp": 65,
+            "fp": 16350,
+            "duplicate_fp": 0,
+            "ignored": 0,
+            "detections": 16415
+          }
+        ],
+        "tp": 1953,
+        "fp": 148047
+      }
+    }
+  },
+  "per_density": {
+    "0.005": {
+      "images": 500,
+      "AP": 36.89971083070011,
+      "AP50": 59.62127886223399,
+      "AP75": 37.50473056277499,
+      "by_iou": {
+        "50": {
+          "AP": 59.62127886223399,
+          "per_class": [
+            {
+              "label": 0,
+              "name": "person",
+              "gt": 3419,
+              "AP": 63.11376792129393,
+              "tp": 2593,
+              "fp": 17495,
+              "duplicate_fp": 271,
+              "ignored": 0,
+              "detections": 20088
+            },
+            {
+              "label": 1,
+              "name": "rider",
+              "gt": 556,
+              "AP": 66.52884940226316,
+              "tp": 432,
+              "fp": 1366,
+              "duplicate_fp": 56,
+              "ignored": 0,
+              "detections": 1798
+            },
+            {
+              "label": 2,
+              "name": "car",
+              "gt": 4667,
+              "AP": 75.78432074893963,
+              "tp": 3884,
+              "fp": 15176,
+              "duplicate_fp": 383,
+              "ignored": 0,
+              "detections": 19060
+            },
+            {
+              "label": 3,
+              "name": "truck",
+              "gt": 93,
+              "AP": 42.581009168102796,
+              "tp": 64,
+              "fp": 1393,
+              "duplicate_fp": 17,
+              "ignored": 0,
+              "detections": 1457
+            },
+            {
+              "label": 4,
+              "name": "bus",
+              "gt": 98,
+              "AP": 61.37950171776105,
+              "tp": 75,
+              "fp": 296,
+              "duplicate_fp": 3,
+              "ignored": 0,
+              "detections": 371
+            },
+            {
+              "label": 5,
+              "name": "train",
+              "gt": 23,
+              "AP": 51.79131213613972,
+              "tp": 14,
+              "fp": 145,
+              "duplicate_fp": 2,
+              "ignored": 0,
+              "detections": 159
+            },
+            {
+              "label": 6,
+              "name": "motorcycle",
+              "gt": 149,
+              "AP": 55.10755718084551,
+              "tp": 104,
+              "fp": 868,
+              "duplicate_fp": 15,
+              "ignored": 0,
+              "detections": 972
+            },
+            {
+              "label": 7,
+              "name": "bicycle",
+              "gt": 1175,
+              "AP": 60.68391262252617,
+              "tp": 894,
+              "fp": 5201,
+              "duplicate_fp": 145,
+              "ignored": 0,
+              "detections": 6095
+            }
+          ],
+          "tp": 8060,
+          "fp": 41940
+        },
+        "55": {
+          "AP": 57.55453851661217,
+          "per_class": [
+            {
+              "label": 0,
+              "name": "person",
+              "gt": 3419,
+              "AP": 60.34315502520135,
+              "tp": 2451,
+              "fp": 17637,
+              "duplicate_fp": 114,
+              "ignored": 0,
+              "detections": 20088
+            },
+            {
+              "label": 1,
+              "name": "rider",
+              "gt": 556,
+              "AP": 65.17823964444453,
+              "tp": 420,
+              "fp": 1378,
+              "duplicate_fp": 24,
+              "ignored": 0,
+              "detections": 1798
+            },
+            {
+              "label": 2,
+              "name": "car",
+              "gt": 4667,
+              "AP": 72.11663785156635,
+              "tp": 3735,
+              "fp": 15325,
+              "duplicate_fp": 186,
+              "ignored": 0,
+              "detections": 19060
+            },
+            {
+              "label": 3,
+              "name": "truck",
+              "gt": 93,
+              "AP": 42.01264934752423,
+              "tp": 60,
+              "fp": 1397,
+              "duplicate_fp": 9,
+              "ignored": 0,
+              "detections": 1457
+            },
+            {
+              "label": 4,
+              "name": "bus",
+              "gt": 98,
+              "AP": 60.1281536618118,
+              "tp": 73,
+              "fp": 298,
+              "duplicate_fp": 1,
+              "ignored": 0,
+              "detections": 371
+            },
+            {
+              "label": 5,
+              "name": "train",
+              "gt": 23,
+              "AP": 51.79131213613972,
+              "tp": 14,
+              "fp": 145,
+              "duplicate_fp": 2,
+              "ignored": 0,
+              "detections": 159
+            },
+            {
+              "label": 6,
+              "name": "motorcycle",
+              "gt": 149,
+              "AP": 51.640367507038654,
+              "tp": 97,
+              "fp": 875,
+              "duplicate_fp": 6,
+              "ignored": 0,
+              "detections": 972
+            },
+            {
+              "label": 7,
+              "name": "bicycle",
+              "gt": 1175,
+              "AP": 57.22579295917073,
+              "tp": 843,
+              "fp": 5252,
+              "duplicate_fp": 69,
+              "ignored": 0,
+              "detections": 6095
+            }
+          ],
+          "tp": 7693,
+          "fp": 42307
+        },
+        "60": {
+          "AP": 54.303987958431314,
+          "per_class": [
+            {
+              "label": 0,
+              "name": "person",
+              "gt": 3419,
+              "AP": 55.06601368599111,
+              "tp": 2221,
+              "fp": 17867,
+              "duplicate_fp": 31,
+              "ignored": 0,
+              "detections": 20088
+            },
+            {
+              "label": 1,
+              "name": "rider",
+              "gt": 556,
+              "AP": 64.24740895569812,
+              "tp": 406,
+              "fp": 1392,
+              "duplicate_fp": 8,
+              "ignored": 0,
+              "detections": 1798
+            },
+            {
+              "label": 2,
+              "name": "car",
+              "gt": 4667,
+              "AP": 69.32591808647622,
+              "tp": 3567,
+              "fp": 15493,
+              "duplicate_fp": 63,
+              "ignored": 0,
+              "detections": 19060
+            },
+            {
+              "label": 3,
+              "name": "truck",
+              "gt": 93,
+              "AP": 38.91582273935215,
+              "tp": 55,
+              "fp": 1402,
+              "duplicate_fp": 2,
+              "ignored": 0,
+              "detections": 1457
+            },
+            {
+              "label": 4,
+              "name": "bus",
+              "gt": 98,
+              "AP": 58.92452732157262,
+              "tp": 70,
+              "fp": 301,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 371
+            },
+            {
+              "label": 5,
+              "name": "train",
+              "gt": 23,
+              "AP": 47.052947052947054,
+              "tp": 13,
+              "fp": 146,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 159
+            },
+            {
+              "label": 6,
+              "name": "motorcycle",
+              "gt": 149,
+              "AP": 50.243356970590725,
+              "tp": 90,
+              "fp": 882,
+              "duplicate_fp": 2,
+              "ignored": 0,
+              "detections": 972
+            },
+            {
+              "label": 7,
+              "name": "bicycle",
+              "gt": 1175,
+              "AP": 50.655908854822506,
+              "tp": 753,
+              "fp": 5342,
+              "duplicate_fp": 23,
+              "ignored": 0,
+              "detections": 6095
+            }
+          ],
+          "tp": 7175,
+          "fp": 42825
+        },
+        "65": {
+          "AP": 48.57578933956231,
+          "per_class": [
+            {
+              "label": 0,
+              "name": "person",
+              "gt": 3419,
+              "AP": 49.28367722426534,
+              "tp": 1987,
+              "fp": 18101,
+              "duplicate_fp": 4,
+              "ignored": 0,
+              "detections": 20088
+            },
+            {
+              "label": 1,
+              "name": "rider",
+              "gt": 556,
+              "AP": 58.724110397105214,
+              "tp": 380,
+              "fp": 1418,
+              "duplicate_fp": 3,
+              "ignored": 0,
+              "detections": 1798
+            },
+            {
+              "label": 2,
+              "name": "car",
+              "gt": 4667,
+              "AP": 66.11391013542514,
+              "tp": 3325,
+              "fp": 15735,
+              "duplicate_fp": 13,
+              "ignored": 0,
+              "detections": 19060
+            },
+            {
+              "label": 3,
+              "name": "truck",
+              "gt": 93,
+              "AP": 38.690671006662726,
+              "tp": 53,
+              "fp": 1404,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 1457
+            },
+            {
+              "label": 4,
+              "name": "bus",
+              "gt": 98,
+              "AP": 55.92322240639211,
+              "tp": 68,
+              "fp": 303,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 371
+            },
+            {
+              "label": 5,
+              "name": "train",
+              "gt": 23,
+              "AP": 30.862068965517242,
+              "tp": 10,
+              "fp": 149,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 159
+            },
+            {
+              "label": 6,
+              "name": "motorcycle",
+              "gt": 149,
+              "AP": 44.169468572920486,
+              "tp": 81,
+              "fp": 891,
+              "duplicate_fp": 1,
+              "ignored": 0,
+              "detections": 972
+            },
+            {
+              "label": 7,
+              "name": "bicycle",
+              "gt": 1175,
+              "AP": 44.83918600821023,
+              "tp": 681,
+              "fp": 5414,
+              "duplicate_fp": 2,
+              "ignored": 0,
+              "detections": 6095
+            }
+          ],
+          "tp": 6585,
+          "fp": 43415
+        },
+        "70": {
+          "AP": 42.55777689829135,
+          "per_class": [
+            {
+              "label": 0,
+              "name": "person",
+              "gt": 3419,
+              "AP": 44.07961837120464,
+              "tp": 1742,
+              "fp": 18346,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 20088
+            },
+            {
+              "label": 1,
+              "name": "rider",
+              "gt": 556,
+              "AP": 54.876167452893796,
+              "tp": 341,
+              "fp": 1457,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 1798
+            },
+            {
+              "label": 2,
+              "name": "car",
+              "gt": 4667,
+              "AP": 60.32661485657014,
+              "tp": 3035,
+              "fp": 16025,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 19060
+            },
+            {
+              "label": 3,
+              "name": "truck",
+              "gt": 93,
+              "AP": 31.783204633493312,
+              "tp": 43,
+              "fp": 1414,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 1457
+            },
+            {
+              "label": 4,
+              "name": "bus",
+              "gt": 98,
+              "AP": 55.54790434023435,
+              "tp": 65,
+              "fp": 306,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 371
+            },
+            {
+              "label": 5,
+              "name": "train",
+              "gt": 23,
+              "AP": 23.275862068965516,
+              "tp": 9,
+              "fp": 150,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 159
+            },
+            {
+              "label": 6,
+              "name": "motorcycle",
+              "gt": 149,
+              "AP": 33.844427716365104,
+              "tp": 64,
+              "fp": 908,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 972
+            },
+            {
+              "label": 7,
+              "name": "bicycle",
+              "gt": 1175,
+              "AP": 36.728415746603986,
+              "tp": 558,
+              "fp": 5537,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 6095
+            }
+          ],
+          "tp": 5857,
+          "fp": 44143
+        },
+        "75": {
+          "AP": 37.50473056277499,
+          "per_class": [
+            {
+              "label": 0,
+              "name": "person",
+              "gt": 3419,
+              "AP": 38.06494732781944,
+              "tp": 1459,
+              "fp": 18629,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 20088
+            },
+            {
+              "label": 1,
+              "name": "rider",
+              "gt": 556,
+              "AP": 46.60888949675061,
+              "tp": 294,
+              "fp": 1504,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 1798
+            },
+            {
+              "label": 2,
+              "name": "car",
+              "gt": 4667,
+              "AP": 52.288585408225444,
+              "tp": 2717,
+              "fp": 16343,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 19060
+            },
+            {
+              "label": 3,
+              "name": "truck",
+              "gt": 93,
+              "AP": 28.78389154704944,
+              "tp": 35,
+              "fp": 1422,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 1457
+            },
+            {
+              "label": 4,
+              "name": "bus",
+              "gt": 98,
+              "AP": 53.67434754576291,
+              "tp": 61,
+              "fp": 310,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 371
+            },
+            {
+              "label": 5,
+              "name": "train",
+              "gt": 23,
+              "AP": 23.275862068965516,
+              "tp": 9,
+              "fp": 150,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 159
+            },
+            {
+              "label": 6,
+              "name": "motorcycle",
+              "gt": 149,
+              "AP": 27.323799795709906,
+              "tp": 51,
+              "fp": 921,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 972
+            },
+            {
+              "label": 7,
+              "name": "bicycle",
+              "gt": 1175,
+              "AP": 30.017521311916624,
+              "tp": 461,
+              "fp": 5634,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 6095
+            }
+          ],
+          "tp": 5087,
+          "fp": 44913
+        },
+        "80": {
+          "AP": 30.20759309119215,
+          "per_class": [
+            {
+              "label": 0,
+              "name": "person",
+              "gt": 3419,
+              "AP": 30.128861157580154,
+              "tp": 1130,
+              "fp": 18958,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 20088
+            },
+            {
+              "label": 1,
+              "name": "rider",
+              "gt": 556,
+              "AP": 35.12041607007282,
+              "tp": 234,
+              "fp": 1564,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 1798
+            },
+            {
+              "label": 2,
+              "name": "car",
+              "gt": 4667,
+              "AP": 48.88700306671906,
+              "tp": 2373,
+              "fp": 16687,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 19060
+            },
+            {
+              "label": 3,
+              "name": "truck",
+              "gt": 93,
+              "AP": 23.64137540312037,
+              "tp": 28,
+              "fp": 1429,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 1457
+            },
+            {
+              "label": 4,
+              "name": "bus",
+              "gt": 98,
+              "AP": 48.25174825174825,
+              "tp": 56,
+              "fp": 315,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 371
+            },
+            {
+              "label": 5,
+              "name": "train",
+              "gt": 23,
+              "AP": 16.112852664576806,
+              "tp": 5,
+              "fp": 154,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 159
+            },
+            {
+              "label": 6,
+              "name": "motorcycle",
+              "gt": 149,
+              "AP": 17.23701830084809,
+              "tp": 32,
+              "fp": 940,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 972
+            },
+            {
+              "label": 7,
+              "name": "bicycle",
+              "gt": 1175,
+              "AP": 22.281469814871667,
+              "tp": 347,
+              "fp": 5748,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 6095
+            }
+          ],
+          "tp": 4205,
+          "fp": 45795
+        },
+        "85": {
+          "AP": 22.41241924775214,
+          "per_class": [
+            {
+              "label": 0,
+              "name": "person",
+              "gt": 3419,
+              "AP": 20.7507089935716,
+              "tp": 777,
+              "fp": 19311,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 20088
+            },
+            {
+              "label": 1,
+              "name": "rider",
+              "gt": 556,
+              "AP": 17.832081048760127,
+              "tp": 155,
+              "fp": 1643,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 1798
+            },
+            {
+              "label": 2,
+              "name": "car",
+              "gt": 4667,
+              "AP": 40.121679587848895,
+              "tp": 1950,
+              "fp": 17110,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 19060
+            },
+            {
+              "label": 3,
+              "name": "truck",
+              "gt": 93,
+              "AP": 23.21428571428572,
+              "tp": 25,
+              "fp": 1432,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 1457
+            },
+            {
+              "label": 4,
+              "name": "bus",
+              "gt": 98,
+              "AP": 40.2806870548806,
+              "tp": 48,
+              "fp": 323,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 371
+            },
+            {
+              "label": 5,
+              "name": "train",
+              "gt": 23,
+              "AP": 14.545454545454547,
+              "tp": 4,
+              "fp": 155,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 159
+            },
+            {
+              "label": 6,
+              "name": "motorcycle",
+              "gt": 149,
+              "AP": 7.2462020737882815,
+              "tp": 21,
+              "fp": 951,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 972
+            },
+            {
+              "label": 7,
+              "name": "bicycle",
+              "gt": 1175,
+              "AP": 15.308254963427379,
+              "tp": 233,
+              "fp": 5862,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 6095
+            }
+          ],
+          "tp": 3213,
+          "fp": 46787
+        },
+        "90": {
+          "AP": 13.27671390304646,
+          "per_class": [
+            {
+              "label": 0,
+              "name": "person",
+              "gt": 3419,
+              "AP": 12.68765638031693,
+              "tp": 422,
+              "fp": 19666,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 20088
+            },
+            {
+              "label": 1,
+              "name": "rider",
+              "gt": 556,
+              "AP": 8.827404479578393,
+              "tp": 79,
+              "fp": 1719,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 1798
+            },
+            {
+              "label": 2,
+              "name": "car",
+              "gt": 4667,
+              "AP": 24.559537459442314,
+              "tp": 1377,
+              "fp": 17683,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 19060
+            },
+            {
+              "label": 3,
+              "name": "truck",
+              "gt": 93,
+              "AP": 13.043478260869565,
+              "tp": 17,
+              "fp": 1440,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 1457
+            },
+            {
+              "label": 4,
+              "name": "bus",
+              "gt": 98,
+              "AP": 25.617328004567515,
+              "tp": 30,
+              "fp": 341,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 371
+            },
+            {
+              "label": 5,
+              "name": "train",
+              "gt": 23,
+              "AP": 9.090909090909092,
+              "tp": 2,
+              "fp": 157,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 159
+            },
+            {
+              "label": 6,
+              "name": "motorcycle",
+              "gt": 149,
+              "AP": 3.03030303030303,
+              "tp": 8,
+              "fp": 964,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 972
+            },
+            {
+              "label": 7,
+              "name": "bicycle",
+              "gt": 1175,
+              "AP": 9.35709451838484,
+              "tp": 118,
+              "fp": 5977,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 6095
+            }
+          ],
+          "tp": 2053,
+          "fp": 47947
+        },
+        "95": {
+          "AP": 2.9822799271041456,
+          "per_class": [
+            {
+              "label": 0,
+              "name": "person",
+              "gt": 3419,
+              "AP": 2.272727272727273,
+              "tp": 97,
+              "fp": 19991,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 20088
+            },
+            {
+              "label": 1,
+              "name": "rider",
+              "gt": 556,
+              "AP": 0.6993006993006993,
+              "tp": 12,
+              "fp": 1786,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 1798
+            },
+            {
+              "label": 2,
+              "name": "car",
+              "gt": 4667,
+              "AP": 9.34075689935065,
+              "tp": 559,
+              "fp": 18501,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 19060
+            },
+            {
+              "label": 3,
+              "name": "truck",
+              "gt": 93,
+              "AP": 0.7575757575757575,
+              "tp": 2,
+              "fp": 1455,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 1457
+            },
+            {
+              "label": 4,
+              "name": "bus",
+              "gt": 98,
+              "AP": 6.06060606060606,
+              "tp": 8,
+              "fp": 363,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 371
+            },
+            {
+              "label": 5,
+              "name": "train",
+              "gt": 23,
+              "AP": 0.0,
+              "tp": 0,
+              "fp": 159,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 159
+            },
+            {
+              "label": 6,
+              "name": "motorcycle",
+              "gt": 149,
+              "AP": 0.18181818181818182,
+              "tp": 1,
+              "fp": 971,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 972
+            },
+            {
+              "label": 7,
+              "name": "bicycle",
+              "gt": 1175,
+              "AP": 4.545454545454546,
+              "tp": 21,
+              "fp": 6074,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 6095
+            }
+          ],
+          "tp": 700,
+          "fp": 49300
+        }
+      }
+    },
+    "0.01": {
+      "images": 500,
+      "AP": 34.58105664287494,
+      "AP50": 55.65253363301095,
+      "AP75": 33.79921178444722,
+      "by_iou": {
+        "50": {
+          "AP": 55.65253363301095,
+          "per_class": [
+            {
+              "label": 0,
+              "name": "person",
+              "gt": 3419,
+              "AP": 60.19861045367586,
+              "tp": 2448,
+              "fp": 16509,
+              "duplicate_fp": 271,
+              "ignored": 0,
+              "detections": 18957
+            },
+            {
+              "label": 1,
+              "name": "rider",
+              "gt": 556,
+              "AP": 65.06957933248441,
+              "tp": 419,
+              "fp": 1276,
+              "duplicate_fp": 51,
+              "ignored": 0,
+              "detections": 1695
+            },
+            {
+              "label": 2,
+              "name": "car",
+              "gt": 4667,
+              "AP": 71.67188675662285,
+              "tp": 3740,
+              "fp": 17396,
+              "duplicate_fp": 412,
+              "ignored": 0,
+              "detections": 21136
+            },
+            {
+              "label": 3,
+              "name": "truck",
+              "gt": 93,
+              "AP": 40.444361658904796,
+              "tp": 58,
+              "fp": 1287,
+              "duplicate_fp": 17,
+              "ignored": 0,
+              "detections": 1345
+            },
+            {
+              "label": 4,
+              "name": "bus",
+              "gt": 98,
+              "AP": 56.11458092374123,
+              "tp": 68,
+              "fp": 254,
+              "duplicate_fp": 3,
+              "ignored": 0,
+              "detections": 322
+            },
+            {
+              "label": 5,
+              "name": "train",
+              "gt": 23,
+              "AP": 39.59595959595959,
+              "tp": 11,
+              "fp": 113,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 124
+            },
+            {
+              "label": 6,
+              "name": "motorcycle",
+              "gt": 149,
+              "AP": 53.34217230199864,
+              "tp": 100,
+              "fp": 811,
+              "duplicate_fp": 19,
+              "ignored": 0,
+              "detections": 911
+            },
+            {
+              "label": 7,
+              "name": "bicycle",
+              "gt": 1175,
+              "AP": 58.78311804070023,
+              "tp": 870,
+              "fp": 4640,
+              "duplicate_fp": 144,
+              "ignored": 0,
+              "detections": 5510
+            }
+          ],
+          "tp": 7714,
+          "fp": 42286
+        },
+        "55": {
+          "AP": 53.46876981878515,
+          "per_class": [
+            {
+              "label": 0,
+              "name": "person",
+              "gt": 3419,
+              "AP": 56.389744115976804,
+              "tp": 2292,
+              "fp": 16665,
+              "duplicate_fp": 123,
+              "ignored": 0,
+              "detections": 18957
+            },
+            {
+              "label": 1,
+              "name": "rider",
+              "gt": 556,
+              "AP": 64.1839283320484,
+              "tp": 409,
+              "fp": 1286,
+              "duplicate_fp": 18,
+              "ignored": 0,
+              "detections": 1695
+            },
+            {
+              "label": 2,
+              "name": "car",
+              "gt": 4667,
+              "AP": 69.04691059735562,
+              "tp": 3595,
+              "fp": 17541,
+              "duplicate_fp": 189,
+              "ignored": 0,
+              "detections": 21136
+            },
+            {
+              "label": 3,
+              "name": "truck",
+              "gt": 93,
+              "AP": 39.400706380689584,
+              "tp": 58,
+              "fp": 1287,
+              "duplicate_fp": 8,
+              "ignored": 0,
+              "detections": 1345
+            },
+            {
+              "label": 4,
+              "name": "bus",
+              "gt": 98,
+              "AP": 55.57007469416227,
+              "tp": 67,
+              "fp": 255,
+              "duplicate_fp": 1,
+              "ignored": 0,
+              "detections": 322
+            },
+            {
+              "label": 5,
+              "name": "train",
+              "gt": 23,
+              "AP": 39.59595959595959,
+              "tp": 11,
+              "fp": 113,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 124
+            },
+            {
+              "label": 6,
+              "name": "motorcycle",
+              "gt": 149,
+              "AP": 49.83880961193707,
+              "tp": 94,
+              "fp": 817,
+              "duplicate_fp": 8,
+              "ignored": 0,
+              "detections": 911
+            },
+            {
+              "label": 7,
+              "name": "bicycle",
+              "gt": 1175,
+              "AP": 53.72402522215185,
+              "tp": 812,
+              "fp": 4698,
+              "duplicate_fp": 63,
+              "ignored": 0,
+              "detections": 5510
+            }
+          ],
+          "tp": 7338,
+          "fp": 42662
+        },
+        "60": {
+          "AP": 50.752522153163426,
+          "per_class": [
+            {
+              "label": 0,
+              "name": "person",
+              "gt": 3419,
+              "AP": 52.227665438284134,
+              "tp": 2097,
+              "fp": 16860,
+              "duplicate_fp": 50,
+              "ignored": 0,
+              "detections": 18957
+            },
+            {
+              "label": 1,
+              "name": "rider",
+              "gt": 556,
+              "AP": 62.5721990101688,
+              "tp": 395,
+              "fp": 1300,
+              "duplicate_fp": 6,
+              "ignored": 0,
+              "detections": 1695
+            },
+            {
+              "label": 2,
+              "name": "car",
+              "gt": 4667,
+              "AP": 66.21341393289826,
+              "tp": 3368,
+              "fp": 17768,
+              "duplicate_fp": 69,
+              "ignored": 0,
+              "detections": 21136
+            },
+            {
+              "label": 3,
+              "name": "truck",
+              "gt": 93,
+              "AP": 36.1567811164506,
+              "tp": 53,
+              "fp": 1292,
+              "duplicate_fp": 2,
+              "ignored": 0,
+              "detections": 1345
+            },
+            {
+              "label": 4,
+              "name": "bus",
+              "gt": 98,
+              "AP": 55.37975912975912,
+              "tp": 65,
+              "fp": 257,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 322
+            },
+            {
+              "label": 5,
+              "name": "train",
+              "gt": 23,
+              "AP": 39.59595959595959,
+              "tp": 11,
+              "fp": 113,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 124
+            },
+            {
+              "label": 6,
+              "name": "motorcycle",
+              "gt": 149,
+              "AP": 44.24311266666891,
+              "tp": 86,
+              "fp": 825,
+              "duplicate_fp": 1,
+              "ignored": 0,
+              "detections": 911
+            },
+            {
+              "label": 7,
+              "name": "bicycle",
+              "gt": 1175,
+              "AP": 49.63128633511797,
+              "tp": 724,
+              "fp": 4786,
+              "duplicate_fp": 19,
+              "ignored": 0,
+              "detections": 5510
+            }
+          ],
+          "tp": 6799,
+          "fp": 43201
+        },
+        "65": {
+          "AP": 45.42116699341456,
+          "per_class": [
+            {
+              "label": 0,
+              "name": "person",
+              "gt": 3419,
+              "AP": 47.81428243865122,
+              "tp": 1877,
+              "fp": 17080,
+              "duplicate_fp": 12,
+              "ignored": 0,
+              "detections": 18957
+            },
+            {
+              "label": 1,
+              "name": "rider",
+              "gt": 556,
+              "AP": 57.712813583417734,
+              "tp": 366,
+              "fp": 1329,
+              "duplicate_fp": 2,
+              "ignored": 0,
+              "detections": 1695
+            },
+            {
+              "label": 2,
+              "name": "car",
+              "gt": 4667,
+              "AP": 60.95430735916406,
+              "tp": 3125,
+              "fp": 18011,
+              "duplicate_fp": 14,
+              "ignored": 0,
+              "detections": 21136
+            },
+            {
+              "label": 3,
+              "name": "truck",
+              "gt": 93,
+              "AP": 33.80542590105841,
+              "tp": 48,
+              "fp": 1297,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 1345
+            },
+            {
+              "label": 4,
+              "name": "bus",
+              "gt": 98,
+              "AP": 54.521816010786594,
+              "tp": 63,
+              "fp": 259,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 322
+            },
+            {
+              "label": 5,
+              "name": "train",
+              "gt": 23,
+              "AP": 25.90909090909091,
+              "tp": 9,
+              "fp": 115,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 124
+            },
+            {
+              "label": 6,
+              "name": "motorcycle",
+              "gt": 149,
+              "AP": 39.386557423515725,
+              "tp": 73,
+              "fp": 838,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 911
+            },
+            {
+              "label": 7,
+              "name": "bicycle",
+              "gt": 1175,
+              "AP": 43.265042321631825,
+              "tp": 646,
+              "fp": 4864,
+              "duplicate_fp": 8,
+              "ignored": 0,
+              "detections": 5510
+            }
+          ],
+          "tp": 6207,
+          "fp": 43793
+        },
+        "70": {
+          "AP": 40.821754900278094,
+          "per_class": [
+            {
+              "label": 0,
+              "name": "person",
+              "gt": 3419,
+              "AP": 41.5001859233891,
+              "tp": 1639,
+              "fp": 17318,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 18957
+            },
+            {
+              "label": 1,
+              "name": "rider",
+              "gt": 556,
+              "AP": 50.39719213873079,
+              "tp": 327,
+              "fp": 1368,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 1695
+            },
+            {
+              "label": 2,
+              "name": "car",
+              "gt": 4667,
+              "AP": 56.81604032008013,
+              "tp": 2828,
+              "fp": 18308,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 21136
+            },
+            {
+              "label": 3,
+              "name": "truck",
+              "gt": 93,
+              "AP": 29.71972565964311,
+              "tp": 41,
+              "fp": 1304,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 1345
+            },
+            {
+              "label": 4,
+              "name": "bus",
+              "gt": 98,
+              "AP": 50.155126563577255,
+              "tp": 57,
+              "fp": 265,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 322
+            },
+            {
+              "label": 5,
+              "name": "train",
+              "gt": 23,
+              "AP": 25.90909090909091,
+              "tp": 9,
+              "fp": 115,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 124
+            },
+            {
+              "label": 6,
+              "name": "motorcycle",
+              "gt": 149,
+              "AP": 35.50998708893445,
+              "tp": 63,
+              "fp": 848,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 911
+            },
+            {
+              "label": 7,
+              "name": "bicycle",
+              "gt": 1175,
+              "AP": 36.56669059877906,
+              "tp": 541,
+              "fp": 4969,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 5510
+            }
+          ],
+          "tp": 5505,
+          "fp": 44495
+        },
+        "75": {
+          "AP": 33.79921178444722,
+          "per_class": [
+            {
+              "label": 0,
+              "name": "person",
+              "gt": 3419,
+              "AP": 34.87269662631724,
+              "tp": 1379,
+              "fp": 17578,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 18957
+            },
+            {
+              "label": 1,
+              "name": "rider",
+              "gt": 556,
+              "AP": 44.24868993551954,
+              "tp": 282,
+              "fp": 1413,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 1695
+            },
+            {
+              "label": 2,
+              "name": "car",
+              "gt": 4667,
+              "AP": 51.561688916006986,
+              "tp": 2544,
+              "fp": 18592,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 21136
+            },
+            {
+              "label": 3,
+              "name": "truck",
+              "gt": 93,
+              "AP": 27.85770750988142,
+              "tp": 31,
+              "fp": 1314,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 1345
+            },
+            {
+              "label": 4,
+              "name": "bus",
+              "gt": 98,
+              "AP": 46.610268548552064,
+              "tp": 53,
+              "fp": 269,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 322
+            },
+            {
+              "label": 5,
+              "name": "train",
+              "gt": 23,
+              "AP": 9.862012987012987,
+              "tp": 5,
+              "fp": 119,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 124
+            },
+            {
+              "label": 6,
+              "name": "motorcycle",
+              "gt": 149,
+              "AP": 25.605076741440374,
+              "tp": 50,
+              "fp": 861,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 911
+            },
+            {
+              "label": 7,
+              "name": "bicycle",
+              "gt": 1175,
+              "AP": 29.775553010847126,
+              "tp": 431,
+              "fp": 5079,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 5510
+            }
+          ],
+          "tp": 4775,
+          "fp": 45225
+        },
+        "80": {
+          "AP": 28.02246067524352,
+          "per_class": [
+            {
+              "label": 0,
+              "name": "person",
+              "gt": 3419,
+              "AP": 28.821712202710547,
+              "tp": 1091,
+              "fp": 17866,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 18957
+            },
+            {
+              "label": 1,
+              "name": "rider",
+              "gt": 556,
+              "AP": 31.32027866983565,
+              "tp": 225,
+              "fp": 1470,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 1695
+            },
+            {
+              "label": 2,
+              "name": "car",
+              "gt": 4667,
+              "AP": 43.32100191355981,
+              "tp": 2225,
+              "fp": 18911,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 21136
+            },
+            {
+              "label": 3,
+              "name": "truck",
+              "gt": 93,
+              "AP": 25.09090909090909,
+              "tp": 27,
+              "fp": 1318,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 1345
+            },
+            {
+              "label": 4,
+              "name": "bus",
+              "gt": 98,
+              "AP": 45.199506375976966,
+              "tp": 50,
+              "fp": 272,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 322
+            },
+            {
+              "label": 5,
+              "name": "train",
+              "gt": 23,
+              "AP": 9.862012987012987,
+              "tp": 5,
+              "fp": 119,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 124
+            },
+            {
+              "label": 6,
+              "name": "motorcycle",
+              "gt": 149,
+              "AP": 18.21360457724094,
+              "tp": 38,
+              "fp": 873,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 911
+            },
+            {
+              "label": 7,
+              "name": "bicycle",
+              "gt": 1175,
+              "AP": 22.35065958470214,
+              "tp": 338,
+              "fp": 5172,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 5510
+            }
+          ],
+          "tp": 3999,
+          "fp": 46001
+        },
+        "85": {
+          "AP": 21.062118323324725,
+          "per_class": [
+            {
+              "label": 0,
+              "name": "person",
+              "gt": 3419,
+              "AP": 20.31902879728967,
+              "tp": 747,
+              "fp": 18210,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 18957
+            },
+            {
+              "label": 1,
+              "name": "rider",
+              "gt": 556,
+              "AP": 17.206308894288437,
+              "tp": 151,
+              "fp": 1544,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 1695
+            },
+            {
+              "label": 2,
+              "name": "car",
+              "gt": 4667,
+              "AP": 34.114980619913155,
+              "tp": 1842,
+              "fp": 19294,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 21136
+            },
+            {
+              "label": 3,
+              "name": "truck",
+              "gt": 93,
+              "AP": 25.09090909090909,
+              "tp": 23,
+              "fp": 1322,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 1345
+            },
+            {
+              "label": 4,
+              "name": "bus",
+              "gt": 98,
+              "AP": 39.0984015984016,
+              "tp": 43,
+              "fp": 279,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 322
+            },
+            {
+              "label": 5,
+              "name": "train",
+              "gt": 23,
+              "AP": 5.3977272727272725,
+              "tp": 3,
+              "fp": 121,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 124
+            },
+            {
+              "label": 6,
+              "name": "motorcycle",
+              "gt": 149,
+              "AP": 12.337662337662337,
+              "tp": 20,
+              "fp": 891,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 911
+            },
+            {
+              "label": 7,
+              "name": "bicycle",
+              "gt": 1175,
+              "AP": 14.931927975406238,
+              "tp": 222,
+              "fp": 5288,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 5510
+            }
+          ],
+          "tp": 3051,
+          "fp": 46949
+        },
+        "90": {
+          "AP": 12.393419753987846,
+          "per_class": [
+            {
+              "label": 0,
+              "name": "person",
+              "gt": 3419,
+              "AP": 12.744364918277961,
+              "tp": 413,
+              "fp": 18544,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 18957
+            },
+            {
+              "label": 1,
+              "name": "rider",
+              "gt": 556,
+              "AP": 8.55614973262032,
+              "tp": 71,
+              "fp": 1624,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 1695
+            },
+            {
+              "label": 2,
+              "name": "car",
+              "gt": 4667,
+              "AP": 24.372291252141334,
+              "tp": 1309,
+              "fp": 19827,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 21136
+            },
+            {
+              "label": 3,
+              "name": "truck",
+              "gt": 93,
+              "AP": 14.14141414141414,
+              "tp": 14,
+              "fp": 1331,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 1345
+            },
+            {
+              "label": 4,
+              "name": "bus",
+              "gt": 98,
+              "AP": 27.211925866236903,
+              "tp": 30,
+              "fp": 292,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 322
+            },
+            {
+              "label": 5,
+              "name": "train",
+              "gt": 23,
+              "AP": 0.0,
+              "tp": 0,
+              "fp": 124,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 124
+            },
+            {
+              "label": 6,
+              "name": "motorcycle",
+              "gt": 149,
+              "AP": 3.03030303030303,
+              "tp": 5,
+              "fp": 906,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 911
+            },
+            {
+              "label": 7,
+              "name": "bicycle",
+              "gt": 1175,
+              "AP": 9.090909090909092,
+              "tp": 112,
+              "fp": 5398,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 5510
+            }
+          ],
+          "tp": 1954,
+          "fp": 48046
+        },
+        "95": {
+          "AP": 4.41660839309392,
+          "per_class": [
+            {
+              "label": 0,
+              "name": "person",
+              "gt": 3419,
+              "AP": 9.090909090909092,
+              "tp": 95,
+              "fp": 18862,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 18957
+            },
+            {
+              "label": 1,
+              "name": "rider",
+              "gt": 556,
+              "AP": 0.9497964721845319,
+              "tp": 12,
+              "fp": 1683,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 1695
+            },
+            {
+              "label": 2,
+              "name": "car",
+              "gt": 4667,
+              "AP": 10.898222187718345,
+              "tp": 529,
+              "fp": 20607,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 21136
+            },
+            {
+              "label": 3,
+              "name": "truck",
+              "gt": 93,
+              "AP": 2.272727272727273,
+              "tp": 2,
+              "fp": 1343,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 1345
+            },
+            {
+              "label": 4,
+              "name": "bus",
+              "gt": 98,
+              "AP": 9.090909090909092,
+              "tp": 8,
+              "fp": 314,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 322
+            },
+            {
+              "label": 5,
+              "name": "train",
+              "gt": 23,
+              "AP": 0.0,
+              "tp": 0,
+              "fp": 124,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 124
+            },
+            {
+              "label": 6,
+              "name": "motorcycle",
+              "gt": 149,
+              "AP": 0.0,
+              "tp": 0,
+              "fp": 911,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 911
+            },
+            {
+              "label": 7,
+              "name": "bicycle",
+              "gt": 1175,
+              "AP": 3.03030303030303,
+              "tp": 24,
+              "fp": 5486,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 5510
+            }
+          ],
+          "tp": 670,
+          "fp": 49330
+        }
+      }
+    },
+    "0.02": {
+      "images": 500,
+      "AP": 31.338773039085858,
+      "AP50": 50.19514586986321,
+      "AP75": 30.647138858107844,
+      "by_iou": {
+        "50": {
+          "AP": 50.19514586986321,
+          "per_class": [
+            {
+              "label": 0,
+              "name": "person",
+              "gt": 3419,
+              "AP": 53.67203357629647,
+              "tp": 2170,
+              "fp": 14802,
+              "duplicate_fp": 224,
+              "ignored": 0,
+              "detections": 16972
+            },
+            {
+              "label": 1,
+              "name": "rider",
+              "gt": 556,
+              "AP": 58.50003093750442,
+              "tp": 383,
+              "fp": 1097,
+              "duplicate_fp": 46,
+              "ignored": 0,
+              "detections": 1480
+            },
+            {
+              "label": 2,
+              "name": "car",
+              "gt": 4667,
+              "AP": 65.62272782315512,
+              "tp": 3443,
+              "fp": 20902,
+              "duplicate_fp": 373,
+              "ignored": 0,
+              "detections": 24345
+            },
+            {
+              "label": 3,
+              "name": "truck",
+              "gt": 93,
+              "AP": 35.52827742667315,
+              "tp": 50,
+              "fp": 1121,
+              "duplicate_fp": 10,
+              "ignored": 0,
+              "detections": 1171
+            },
+            {
+              "label": 4,
+              "name": "bus",
+              "gt": 98,
+              "AP": 50.87521229893832,
+              "tp": 59,
+              "fp": 223,
+              "duplicate_fp": 2,
+              "ignored": 0,
+              "detections": 282
+            },
+            {
+              "label": 5,
+              "name": "train",
+              "gt": 23,
+              "AP": 34.11845730027549,
+              "tp": 11,
+              "fp": 106,
+              "duplicate_fp": 1,
+              "ignored": 0,
+              "detections": 117
+            },
+            {
+              "label": 6,
+              "name": "motorcycle",
+              "gt": 149,
+              "AP": 50.21399563732761,
+              "tp": 95,
+              "fp": 728,
+              "duplicate_fp": 12,
+              "ignored": 0,
+              "detections": 823
+            },
+            {
+              "label": 7,
+              "name": "bicycle",
+              "gt": 1175,
+              "AP": 53.03043195873509,
+              "tp": 781,
+              "fp": 4029,
+              "duplicate_fp": 131,
+              "ignored": 0,
+              "detections": 4810
+            }
+          ],
+          "tp": 6992,
+          "fp": 43008
+        },
+        "55": {
+          "AP": 48.23464635431545,
+          "per_class": [
+            {
+              "label": 0,
+              "name": "person",
+              "gt": 3419,
+              "AP": 49.865562040222464,
+              "tp": 2041,
+              "fp": 14931,
+              "duplicate_fp": 97,
+              "ignored": 0,
+              "detections": 16972
+            },
+            {
+              "label": 1,
+              "name": "rider",
+              "gt": 556,
+              "AP": 57.91944705949498,
+              "tp": 373,
+              "fp": 1107,
+              "duplicate_fp": 19,
+              "ignored": 0,
+              "detections": 1480
+            },
+            {
+              "label": 2,
+              "name": "car",
+              "gt": 4667,
+              "AP": 62.39521070163783,
+              "tp": 3273,
+              "fp": 21072,
+              "duplicate_fp": 156,
+              "ignored": 0,
+              "detections": 24345
+            },
+            {
+              "label": 3,
+              "name": "truck",
+              "gt": 93,
+              "AP": 35.52827742667315,
+              "tp": 50,
+              "fp": 1121,
+              "duplicate_fp": 7,
+              "ignored": 0,
+              "detections": 1171
+            },
+            {
+              "label": 4,
+              "name": "bus",
+              "gt": 98,
+              "AP": 48.162160157264196,
+              "tp": 56,
+              "fp": 226,
+              "duplicate_fp": 1,
+              "ignored": 0,
+              "detections": 282
+            },
+            {
+              "label": 5,
+              "name": "train",
+              "gt": 23,
+              "AP": 34.11845730027549,
+              "tp": 11,
+              "fp": 106,
+              "duplicate_fp": 1,
+              "ignored": 0,
+              "detections": 117
+            },
+            {
+              "label": 6,
+              "name": "motorcycle",
+              "gt": 149,
+              "AP": 47.046818727491,
+              "tp": 85,
+              "fp": 738,
+              "duplicate_fp": 3,
+              "ignored": 0,
+              "detections": 823
+            },
+            {
+              "label": 7,
+              "name": "bicycle",
+              "gt": 1175,
+              "AP": 50.841237421464506,
+              "tp": 740,
+              "fp": 4070,
+              "duplicate_fp": 53,
+              "ignored": 0,
+              "detections": 4810
+            }
+          ],
+          "tp": 6629,
+          "fp": 43371
+        },
+        "60": {
+          "AP": 45.70419493234448,
+          "per_class": [
+            {
+              "label": 0,
+              "name": "person",
+              "gt": 3419,
+              "AP": 47.4187034478042,
+              "tp": 1868,
+              "fp": 15104,
+              "duplicate_fp": 39,
+              "ignored": 0,
+              "detections": 16972
+            },
+            {
+              "label": 1,
+              "name": "rider",
+              "gt": 556,
+              "AP": 56.49970670997221,
+              "tp": 358,
+              "fp": 1122,
+              "duplicate_fp": 8,
+              "ignored": 0,
+              "detections": 1480
+            },
+            {
+              "label": 2,
+              "name": "car",
+              "gt": 4667,
+              "AP": 59.59547838950946,
+              "tp": 3070,
+              "fp": 21275,
+              "duplicate_fp": 56,
+              "ignored": 0,
+              "detections": 24345
+            },
+            {
+              "label": 3,
+              "name": "truck",
+              "gt": 93,
+              "AP": 32.99128880947063,
+              "tp": 45,
+              "fp": 1126,
+              "duplicate_fp": 3,
+              "ignored": 0,
+              "detections": 1171
+            },
+            {
+              "label": 4,
+              "name": "bus",
+              "gt": 98,
+              "AP": 47.224880382775126,
+              "tp": 54,
+              "fp": 228,
+              "duplicate_fp": 1,
+              "ignored": 0,
+              "detections": 282
+            },
+            {
+              "label": 5,
+              "name": "train",
+              "gt": 23,
+              "AP": 34.11845730027549,
+              "tp": 11,
+              "fp": 106,
+              "duplicate_fp": 1,
+              "ignored": 0,
+              "detections": 117
+            },
+            {
+              "label": 6,
+              "name": "motorcycle",
+              "gt": 149,
+              "AP": 42.670841063698205,
+              "tp": 76,
+              "fp": 747,
+              "duplicate_fp": 1,
+              "ignored": 0,
+              "detections": 823
+            },
+            {
+              "label": 7,
+              "name": "bicycle",
+              "gt": 1175,
+              "AP": 45.11420335525057,
+              "tp": 670,
+              "fp": 4140,
+              "duplicate_fp": 24,
+              "ignored": 0,
+              "detections": 4810
+            }
+          ],
+          "tp": 6152,
+          "fp": 43848
+        },
+        "65": {
+          "AP": 40.42049341293298,
+          "per_class": [
+            {
+              "label": 0,
+              "name": "person",
+              "gt": 3419,
+              "AP": 42.24093959217724,
+              "tp": 1672,
+              "fp": 15300,
+              "duplicate_fp": 4,
+              "ignored": 0,
+              "detections": 16972
+            },
+            {
+              "label": 1,
+              "name": "rider",
+              "gt": 556,
+              "AP": 53.11533130980999,
+              "tp": 335,
+              "fp": 1145,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 1480
+            },
+            {
+              "label": 2,
+              "name": "car",
+              "gt": 4667,
+              "AP": 54.86107160791097,
+              "tp": 2830,
+              "fp": 21515,
+              "duplicate_fp": 12,
+              "ignored": 0,
+              "detections": 24345
+            },
+            {
+              "label": 3,
+              "name": "truck",
+              "gt": 93,
+              "AP": 30.51360997885062,
+              "tp": 40,
+              "fp": 1131,
+              "duplicate_fp": 1,
+              "ignored": 0,
+              "detections": 1171
+            },
+            {
+              "label": 4,
+              "name": "bus",
+              "gt": 98,
+              "AP": 47.224880382775126,
+              "tp": 53,
+              "fp": 229,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 282
+            },
+            {
+              "label": 5,
+              "name": "train",
+              "gt": 23,
+              "AP": 17.4965564738292,
+              "tp": 8,
+              "fp": 109,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 117
+            },
+            {
+              "label": 6,
+              "name": "motorcycle",
+              "gt": 149,
+              "AP": 38.07575757575758,
+              "tp": 66,
+              "fp": 757,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 823
+            },
+            {
+              "label": 7,
+              "name": "bicycle",
+              "gt": 1175,
+              "AP": 39.83580038235311,
+              "tp": 589,
+              "fp": 4221,
+              "duplicate_fp": 6,
+              "ignored": 0,
+              "detections": 4810
+            }
+          ],
+          "tp": 5593,
+          "fp": 44407
+        },
+        "70": {
+          "AP": 36.85604514135167,
+          "per_class": [
+            {
+              "label": 0,
+              "name": "person",
+              "gt": 3419,
+              "AP": 38.46630335830317,
+              "tp": 1453,
+              "fp": 15519,
+              "duplicate_fp": 2,
+              "ignored": 0,
+              "detections": 16972
+            },
+            {
+              "label": 1,
+              "name": "rider",
+              "gt": 556,
+              "AP": 49.3111250233396,
+              "tp": 297,
+              "fp": 1183,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 1480
+            },
+            {
+              "label": 2,
+              "name": "car",
+              "gt": 4667,
+              "AP": 51.86557572292217,
+              "tp": 2573,
+              "fp": 21772,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 24345
+            },
+            {
+              "label": 3,
+              "name": "truck",
+              "gt": 93,
+              "AP": 27.38308279646862,
+              "tp": 33,
+              "fp": 1138,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 1171
+            },
+            {
+              "label": 4,
+              "name": "bus",
+              "gt": 98,
+              "AP": 46.552943623881845,
+              "tp": 51,
+              "fp": 231,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 282
+            },
+            {
+              "label": 5,
+              "name": "train",
+              "gt": 23,
+              "AP": 16.704545454545453,
+              "tp": 7,
+              "fp": 110,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 117
+            },
+            {
+              "label": 6,
+              "name": "motorcycle",
+              "gt": 149,
+              "AP": 30.02048565684929,
+              "tp": 55,
+              "fp": 768,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 823
+            },
+            {
+              "label": 7,
+              "name": "bicycle",
+              "gt": 1175,
+              "AP": 34.5442994945032,
+              "tp": 499,
+              "fp": 4311,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 4810
+            }
+          ],
+          "tp": 4968,
+          "fp": 45032
+        },
+        "75": {
+          "AP": 30.647138858107844,
+          "per_class": [
+            {
+              "label": 0,
+              "name": "person",
+              "gt": 3419,
+              "AP": 32.70142913508237,
+              "tp": 1231,
+              "fp": 15741,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 16972
+            },
+            {
+              "label": 1,
+              "name": "rider",
+              "gt": 556,
+              "AP": 40.83170413815575,
+              "tp": 258,
+              "fp": 1222,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 1480
+            },
+            {
+              "label": 2,
+              "name": "car",
+              "gt": 4667,
+              "AP": 43.91369236368081,
+              "tp": 2277,
+              "fp": 22068,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 24345
+            },
+            {
+              "label": 3,
+              "name": "truck",
+              "gt": 93,
+              "AP": 24.442775890225814,
+              "tp": 28,
+              "fp": 1143,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 1171
+            },
+            {
+              "label": 4,
+              "name": "bus",
+              "gt": 98,
+              "AP": 44.553532591810104,
+              "tp": 49,
+              "fp": 233,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 282
+            },
+            {
+              "label": 5,
+              "name": "train",
+              "gt": 23,
+              "AP": 11.607142857142856,
+              "tp": 5,
+              "fp": 112,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 117
+            },
+            {
+              "label": 6,
+              "name": "motorcycle",
+              "gt": 149,
+              "AP": 19.293478260869566,
+              "tp": 35,
+              "fp": 788,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 823
+            },
+            {
+              "label": 7,
+              "name": "bicycle",
+              "gt": 1175,
+              "AP": 27.83335562789548,
+              "tp": 393,
+              "fp": 4417,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 4810
+            }
+          ],
+          "tp": 4276,
+          "fp": 45724
+        },
+        "80": {
+          "AP": 25.761159481133156,
+          "per_class": [
+            {
+              "label": 0,
+              "name": "person",
+              "gt": 3419,
+              "AP": 24.261042629686695,
+              "tp": 947,
+              "fp": 16025,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 16972
+            },
+            {
+              "label": 1,
+              "name": "rider",
+              "gt": 556,
+              "AP": 29.998499189562366,
+              "tp": 202,
+              "fp": 1278,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 1480
+            },
+            {
+              "label": 2,
+              "name": "car",
+              "gt": 4667,
+              "AP": 41.55371433033091,
+              "tp": 1974,
+              "fp": 22371,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 24345
+            },
+            {
+              "label": 3,
+              "name": "truck",
+              "gt": 93,
+              "AP": 24.137931034482758,
+              "tp": 27,
+              "fp": 1144,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 1171
+            },
+            {
+              "label": 4,
+              "name": "bus",
+              "gt": 98,
+              "AP": 41.228070175438596,
+              "tp": 44,
+              "fp": 238,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 282
+            },
+            {
+              "label": 5,
+              "name": "train",
+              "gt": 23,
+              "AP": 9.917355371900825,
+              "tp": 3,
+              "fp": 114,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 117
+            },
+            {
+              "label": 6,
+              "name": "motorcycle",
+              "gt": 149,
+              "AP": 14.14141414141414,
+              "tp": 25,
+              "fp": 798,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 823
+            },
+            {
+              "label": 7,
+              "name": "bicycle",
+              "gt": 1175,
+              "AP": 20.851248976248975,
+              "tp": 300,
+              "fp": 4510,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 4810
+            }
+          ],
+          "tp": 3522,
+          "fp": 46478
+        },
+        "85": {
+          "AP": 19.272514766090467,
+          "per_class": [
+            {
+              "label": 0,
+              "name": "person",
+              "gt": 3419,
+              "AP": 15.884333531392356,
+              "tp": 657,
+              "fp": 16315,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 16972
+            },
+            {
+              "label": 1,
+              "name": "rider",
+              "gt": 556,
+              "AP": 18.96135265700483,
+              "tp": 129,
+              "fp": 1351,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 1480
+            },
+            {
+              "label": 2,
+              "name": "car",
+              "gt": 4667,
+              "AP": 33.6483457260713,
+              "tp": 1627,
+              "fp": 22718,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 24345
+            },
+            {
+              "label": 3,
+              "name": "truck",
+              "gt": 93,
+              "AP": 19.39820742637644,
+              "tp": 19,
+              "fp": 1152,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 1171
+            },
+            {
+              "label": 4,
+              "name": "bus",
+              "gt": 98,
+              "AP": 33.333333333333336,
+              "tp": 35,
+              "fp": 247,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 282
+            },
+            {
+              "label": 5,
+              "name": "train",
+              "gt": 23,
+              "AP": 9.090909090909092,
+              "tp": 2,
+              "fp": 115,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 117
+            },
+            {
+              "label": 6,
+              "name": "motorcycle",
+              "gt": 149,
+              "AP": 9.090909090909092,
+              "tp": 10,
+              "fp": 813,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 823
+            },
+            {
+              "label": 7,
+              "name": "bicycle",
+              "gt": 1175,
+              "AP": 14.772727272727273,
+              "tp": 206,
+              "fp": 4604,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 4810
+            }
+          ],
+          "tp": 2685,
+          "fp": 47315
+        },
+        "90": {
+          "AP": 12.106877706166756,
+          "per_class": [
+            {
+              "label": 0,
+              "name": "person",
+              "gt": 3419,
+              "AP": 12.237762237762238,
+              "tp": 377,
+              "fp": 16595,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 16972
+            },
+            {
+              "label": 1,
+              "name": "rider",
+              "gt": 556,
+              "AP": 5.473610274934779,
+              "tp": 58,
+              "fp": 1422,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 1480
+            },
+            {
+              "label": 2,
+              "name": "car",
+              "gt": 4667,
+              "AP": 23.568501104592432,
+              "tp": 1187,
+              "fp": 23158,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 24345
+            },
+            {
+              "label": 3,
+              "name": "truck",
+              "gt": 93,
+              "AP": 11.616161616161614,
+              "tp": 14,
+              "fp": 1157,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 1171
+            },
+            {
+              "label": 4,
+              "name": "bus",
+              "gt": 98,
+              "AP": 22.746865203761757,
+              "tp": 25,
+              "fp": 257,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 282
+            },
+            {
+              "label": 5,
+              "name": "train",
+              "gt": 23,
+              "AP": 9.090909090909092,
+              "tp": 1,
+              "fp": 116,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 117
+            },
+            {
+              "label": 6,
+              "name": "motorcycle",
+              "gt": 149,
+              "AP": 3.03030303030303,
+              "tp": 3,
+              "fp": 820,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 823
+            },
+            {
+              "label": 7,
+              "name": "bicycle",
+              "gt": 1175,
+              "AP": 9.090909090909092,
+              "tp": 105,
+              "fp": 4705,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 4810
+            }
+          ],
+          "tp": 1770,
+          "fp": 48230
+        },
+        "95": {
+          "AP": 4.1895138685525755,
+          "per_class": [
+            {
+              "label": 0,
+              "name": "person",
+              "gt": 3419,
+              "AP": 9.090909090909092,
+              "tp": 74,
+              "fp": 16898,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 16972
+            },
+            {
+              "label": 1,
+              "name": "rider",
+              "gt": 556,
+              "AP": 0.5509641873278237,
+              "tp": 8,
+              "fp": 1472,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 1480
+            },
+            {
+              "label": 2,
+              "name": "car",
+              "gt": 4667,
+              "AP": 6.34177013771616,
+              "tp": 474,
+              "fp": 23871,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 24345
+            },
+            {
+              "label": 3,
+              "name": "truck",
+              "gt": 93,
+              "AP": 3.896103896103896,
+              "tp": 3,
+              "fp": 1168,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 1171
+            },
+            {
+              "label": 4,
+              "name": "bus",
+              "gt": 98,
+              "AP": 4.545454545454546,
+              "tp": 4,
+              "fp": 278,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 282
+            },
+            {
+              "label": 5,
+              "name": "train",
+              "gt": 23,
+              "AP": 0.0,
+              "tp": 0,
+              "fp": 117,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 117
+            },
+            {
+              "label": 6,
+              "name": "motorcycle",
+              "gt": 149,
+              "AP": 0.0,
+              "tp": 0,
+              "fp": 823,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 823
+            },
+            {
+              "label": 7,
+              "name": "bicycle",
+              "gt": 1175,
+              "AP": 9.090909090909092,
+              "tp": 20,
+              "fp": 4790,
+              "duplicate_fp": 0,
+              "ignored": 0,
+              "detections": 4810
+            }
+          ],
+          "tp": 583,
+          "fp": 49417
+        }
+      }
+    }
+  },
+  "conventions": {
+    "prediction_minima_offset": 1,
+    "score_decimal_places": 3,
+    "box_decimal_places": 1,
+    "inclusive_IoU": true,
+    "match_rule": "strict >",
+    "empty_GT_class_AP": 0,
+    "class_count": 8,
+    "numpy_version": "1.24.4"
+  },
+  "note": "Pooled AP ranks all unique density image IDs together; per-density AP averages are different metrics.",
+  "expected_images": 1500,
+  "seconds": 714.6848549842834,
+  "predictions_sha256": "c342308585e838c480faac4dfdfa3aa73f86d5ae861fc28947373a520d211a87",
+  "manifest_sha256": "671d6805feddac71357c5cc12e94389b62385d38b70e1f2b1f17ec598c149ca6",
+  "training_budget_extension_informed_by_validation": false,
+  "experiment_design_informed_by_prior_validation": true,
+  "experiment_scope": "uda_ema_strong_weak_h2fa_image_consistency_25k",
+  "primary_checkpoint_policy": "fixed_25000",
+  "auxiliary_best_checkpoint_policy": "highest_observed_validation_mixed_AP50",
+  "target_image_labels_used_in_training": false,
+  "evaluation_GT_used_for_training": false,
+  "validation_metrics_used_for_exploration_and_auxiliary_best": true,
+  "image_consistency_enabled": true,
+  "strong_weak_enabled": true,
+  "semantic_teacher_mode": "ema",
+  "evaluation_model": "student",
+  "ema_decay": 0.9996,
+  "ema_updates": 25000,
+  "image_aggregation": "h2fa_iir",
+  "image_consistency_weight": 1.0
+}

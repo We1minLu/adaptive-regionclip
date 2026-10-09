@@ -1,0 +1,40 @@
+{
+  "experiment": "formal_vgs_ema_image_20261008",
+  "regime": "unsupervised_domain_adaptation",
+  "best_step": 8000,
+  "best_mixed_AP50": 58.356486657395756,
+  "best_checkpoint": "/root/autodl-tmp/checkpoints/vgs_ema_image_ap5836_8k/model_best_ap5836.pth",
+  "original_checkpoint": "/root/autodl-tmp/formal_vgs_ema_image_20261008/run/model_best_observed.pth",
+  "bytes": 309504161,
+  "sha256": "1aa47033f5de2d102c01ca3329d0e173aa229eff3c0f4adff8fdc5b40f27d5d9",
+  "checkpoint_kind": "inference checkpoint with student and EMA teacher; no optimizer state",
+  "resume_from_best_8k_supported": false,
+  "evaluation_output": "student detections using EMA teacher semantic maps",
+  "fixed_assets_directory": "/root/autodl-tmp/checkpoints/vgs_da_ap5598_25k/fixed_assets",
+  "fixed_sources": {
+    "source_cfg": {
+      "path": "/root/regionclip/DA-Pro/migration_records/20260930_sourceB_advV3/source_B/config.yaml",
+      "sha256": "a4b7580f000e3040749648da1acd339bd5d6a74e6dbdd456fe1e333ec207d979"
+    },
+    "source_checkpoint": {
+      "path": "/root/regionclip/DA-Pro/output/source-only/regionclip_cityscapes_train_only_100k/model_best.pth",
+      "sha256": "f199ea87709207a0b2ee23dd63dd49d4d3b540c8e9eb9c213d00f3e449a5e861"
+    },
+    "rpn_checkpoint": {
+      "path": "/root/regionclip/DA-Pro/pretrained_ckpt/rpn/rpn_coco_48.pth",
+      "sha256": "8b934109caae409fbf62753d1f167ea1411b75aa0b30c60f5c289aa90ada42ca"
+    },
+    "text_embeddings": {
+      "path": "/root/regionclip/DA-Pro/pretrained_ckpt/concept_emb/cityscapes_8_cls_emb.pth",
+      "sha256": "c25e3d4b8c8271213929d0fe88cfe7f3e934b5ba81e9a34af3521756e74827ae"
+    },
+    "source_search_checkpoint": {
+      "path": "/root/regionclip/DA-Pro/output/learned_semantic_search_20261003/seed_20261003/vgs/best.pt",
+      "sha256": "329983382c01867dec64ee75fe75f5631b330a289b6e36c487131a435b2f2d4e"
+    }
+  },
+  "final_25k_checkpoint": "/root/autodl-tmp/formal_vgs_ema_image_20261008/run/model_final.pth",
+  "final_25k_resume": "/root/autodl-tmp/formal_vgs_ema_image_20261008/run/checkpoint_last.pth",
+  "target_image_labels_used": false,
+  "target_pseudo_box_losses": false
+}

@@ -42,7 +42,8 @@ def configure(args):
 
 def main():
     parser = argparse.ArgumentParser(__doc__)
-    parser.add_argument('--preset', choices=('formal_25k', 'extend_35k', 'early_5k', 'uda_25k'), default='formal_25k')
+    parser.add_argument('--preset', choices=('formal_25k', 'extend_35k', 'early_5k',
+                                            'uda_25k', 'ema_image_25k'), default='formal_25k')
     parser.add_argument('--repo-root', default=str(HERE.parents[1]))
     parser.add_argument('--source-config', default=str(HERE / 'configs/source_B.yaml'))
     for name in ('manifest-dir', 'output-dir', 'source-checkpoint', 'source-search-checkpoint',
