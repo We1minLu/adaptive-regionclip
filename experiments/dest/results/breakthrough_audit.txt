@@ -1,0 +1,28 @@
+BREAKTHROUGH VERSION AUDIT — 2026-10-27
+
+Live GitHub master and clean local clone both resolve to f9d98fc76c95e2b8e6083030169663626e11babe.
+Original training commit in remote deployment manifest: f826bd6f898bbd1c234285fbea19ee9b72010bd3.
+All 12 archived runtime source files on n017 match the files committed in GitHub byte-for-byte (SHA256).
+Publication-only historical change: configure.py added a convenient preset; training runtime unchanged.
+
+Best recorded comparable formal run: formal_vgs_ema_image_20261008, step8000, AP50 58.356486657395756.
+This is 500 scenes × 3 fog densities =1500 validation images, VOC2007 eleven-point AP, pooled predictions.
+Dense-fog-only AP50 is53.81481039269583, not58.36. Best is validation-selected; fixed25K final is55.190529198968065.
+Four available evaluation histories were scanned: maxima55.16509,55.97530,56.18752,58.35649. No later formal_vgs run was found.
+The original20261004 run has no evaluation_history; its final result is preserved as the extension's parent reference55.97530.
+
+Best inference checkpoint is still present and matches manifest SHA256:
+/root/autodl-tmp/checkpoints/vgs_ema_image_ap5836_8k/model_best_ap5836.pth
+1aa47033f5de2d102c01ca3329d0e173aa229eff3c0f4adff8fdc5b40f27d5d9
+
+Same source initialization for the new run:
+/root/regionclip/DA-Pro/output/source-only/regionclip_cityscapes_train_only_100k/model_best.pth
+f199ea87709207a0b2ee23dd63dd49d4d3b540c8e9eb9c213d00f3e449a5e861
+SourceB, fixedRPN and text embeddings were independently rehashed remotely; all match the published manifest.
+The prior run also initialized source-trained VGS. The new paper removes VGS, so preserve SourceB but do not import the obsolete search module merely to reproduce the old initialization bundle.
+
+Authoritative completed run config: /root/autodl-tmp/formal_vgs_ema_image_20261008/run/config.json
+Fast settings: teacherROIchunk256, studentROIchunk512, checkpoint_res5=false; source2+target2;25Ksteps;SGD0.0005;auxAdamW0.0002;EMA0.9996.
+Old run evaluates STUDENT detections with EMA teacher semantic maps. New paper specifies adapted TEACHER inference; do not equate their evaluation architecture silently.
+
+Conclusion: breakthrough code is already published. No archive replacement/push is required. Audit made no repository or remote changes.

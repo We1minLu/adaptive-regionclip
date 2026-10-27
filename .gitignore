@@ -73,3 +73,7 @@ _darcs
 *.ckpt
 /runs/
 /checkpoints/
+
+# DeST experiment code/configuration; weights and runtime outputs remain local.
+!/experiments/dest/configs/*.json
+!/experiments/dest/results/*.json

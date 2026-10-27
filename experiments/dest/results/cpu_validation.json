@@ -1,0 +1,63 @@
+{
+  "date": "2026-10-27",
+  "remote_host": "n017",
+  "remote_checkout": "/root/autodl-tmp/dest_mrsa_20261027/repo",
+  "base_commit": "f9d98fc76c95e2b8e6083030169663626e11babe",
+  "state": "cpu_validated_waiting_for_user_gpu_activation",
+  "gpu_training_started": false,
+  "remote_python": "/root/autodl-tmp/conda/envs/regionclip/bin/python",
+  "torch": "1.9.0+cu111",
+  "core_and_trainer_tests": {
+    "passed": 42,
+    "failed": 0
+  },
+  "model_tests": {
+    "passed": 8,
+    "failed": 0,
+    "skipped": 0
+  },
+  "actual_model_cpu_integration": {
+    "sourceB_active_tensors_exact": 509,
+    "native_RPN_selection_parity": true,
+    "native_classifier_and_box_delta_parity": true,
+    "forward_backward_passed": true,
+    "teacher_inference_passed": true,
+    "test_image_size": [
+      64,
+      128
+    ],
+    "test_proposal_budget": 2,
+    "test_window_scales": [
+      1
+    ],
+    "optimizer_updates": 0,
+    "teacher_received_gradients": false,
+    "nonzero_finite_gradient_groups": [
+      "recognition backbone",
+      "localization backbone",
+      "RPN",
+      "ROI box regression",
+      "domain discriminators"
+    ],
+    "spatial_branch_note": "Synthetic input produced no final teacher hint; positive spatial-gradient behavior is verified by separate core tests."
+  },
+  "cpu_memory_limit_bytes": 2147483648,
+  "initial_larger_CPU_forward_backward": "Killed by the 2 GiB CPU-mode memory limit; reduced test input passed. Formal GPU configuration unchanged.",
+  "target_training_labels_used": false,
+  "training_evaluation_scene_overlap": 0,
+  "source_images": 2975,
+  "target_images": 8925,
+  "evaluation_images": 1500,
+  "remote_reports": [
+    "/root/autodl-tmp/dest_mrsa_20261027/cpu_preflight.json",
+    "/root/autodl-tmp/dest_mrsa_20261027/cpu_integration.json",
+    "/root/autodl-tmp/dest_mrsa_20261027/core_training_tests.log",
+    "/root/autodl-tmp/dest_mrsa_20261027/model_tests_tiny.log"
+  ],
+  "remaining_checks": [
+    "GPU full-resolution memory and CUDA AMP",
+    "GPU smoke 4 updates + resume 2 updates",
+    "fresh SourceB formal 25000-step training"
+  ],
+  "no_full_training_checkpoint_created": true
+}
