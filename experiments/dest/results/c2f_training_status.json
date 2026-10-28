@@ -1,0 +1,36 @@
+{
+  "state": "complete",
+  "pid": 1109,
+  "smoke": false,
+  "step": 25000,
+  "max_steps": 25000,
+  "successful_updates": 25000,
+  "latest_evaluation": {
+    "step": 25000,
+    "scope": "current",
+    "images": 1500,
+    "mixed_AP50": 61.69424555416755,
+    "mixed_AP75": 37.68122489090453,
+    "density_AP50": {
+      "0.005": 65.01088331014797,
+      "0.01": 63.31273939849798,
+      "0.02": 57.72278677271784
+    },
+    "recorded_at": 1793169242.6668727
+  },
+  "skipped_updates": 0,
+  "duration_seconds": 80816.69411921501,
+  "amp_retry_attempts": 8,
+  "mean_update_seconds": 2.6398725998135077,
+  "peak_allocated_GiB": 9.267978191375732,
+  "peak_reserved_GiB": 10.328125,
+  "effective_images_per_domain": 2,
+  "image_consistency_enabled": true,
+  "strong_weak_enabled": true,
+  "semantic_teacher_mode": "ema",
+  "evaluation_model": "teacher",
+  "ema_decay": 0.9996,
+  "ema_updates": 25000,
+  "image_aggregation": "mrsa_teacher_h2fa_student",
+  "image_consistency_weight": 1.0
+}

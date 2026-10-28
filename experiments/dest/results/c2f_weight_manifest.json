@@ -1,0 +1,116 @@
+{
+  "archive_date": "2026-10-28",
+  "host": "011",
+  "training_run": "/root/autodl-tmp/dest_mrsa_20261027/run",
+  "training_code_commit": "e089bc781e255aa47ef2b44db412de18e8a7815e",
+  "code_repository": "https://github.com/We1minLu/adaptive-regionclip",
+  "initialization": "fresh SourceB source-only checkpoint, not resumed from the historical 8K adapted model",
+  "source_iteration": 24499,
+  "sources": {
+    "source_cfg": {
+      "path": "/root/regionclip/DA-Pro/migration_records/20260930_sourceB_advV3/source_B/config.yaml",
+      "sha256": "a4b7580f000e3040749648da1acd339bd5d6a74e6dbdd456fe1e333ec207d979"
+    },
+    "source_checkpoint": {
+      "path": "/root/autodl-tmp/checkpoints/vgs_da_ap5598_25k/fixed_assets/source_checkpoint.pth",
+      "sha256": "f199ea87709207a0b2ee23dd63dd49d4d3b540c8e9eb9c213d00f3e449a5e861"
+    },
+    "rpn_checkpoint": {
+      "path": "/root/autodl-tmp/checkpoints/vgs_da_ap5598_25k/fixed_assets/rpn_checkpoint.pth",
+      "sha256": "8b934109caae409fbf62753d1f167ea1411b75aa0b30c60f5c289aa90ada42ca"
+    },
+    "text_embeddings": {
+      "path": "/root/regionclip/DA-Pro/pretrained_ckpt/concept_emb/cityscapes_8_cls_emb.pth",
+      "sha256": "c25e3d4b8c8271213929d0fe88cfe7f3e934b5ba81e9a34af3521756e74827ae"
+    }
+  },
+  "data_manifest_sha256": {
+    "source_train.json": "e23457b8e1c7830b000ace01463a3a167c46ddd228e07307070d3560b0cbf732",
+    "target_train.json": "505f35dc76de79d9df3613ab6efac38cd117425b4f388a39d36007aa32e62751",
+    "eval_mixed.json": "671d6805feddac71357c5cc12e94389b62385d38b70e1f2b1f17ec598c149ca6"
+  },
+  "weights": {
+    "best": {
+      "path": "/root/autodl-tmp/checkpoints/dest_mrsa_c2f_ap6201_22k_20261028/model_best_ap6201_step022000.pth",
+      "bytes": 452896919,
+      "sha256": "edbba29d310ae17f87d43528f95a1e4dd5459ee3d8f6da72db1090352afcee58",
+      "step": 22000,
+      "contents": "model states and provenance, no optimizer/RNG"
+    },
+    "final": {
+      "path": "/root/autodl-tmp/dest_mrsa_20261027/run/model_final.pth",
+      "bytes": 452896599,
+      "sha256": "2d9566326ec24bb80adf2ff7341d2c48833ba22a9cd81ebbf389834f8a0b8420",
+      "step": 25000,
+      "contents": "model states and provenance, no optimizer/RNG"
+    },
+    "resume_final": {
+      "path": "/root/autodl-tmp/dest_mrsa_20261027/run/checkpoint_last.pth",
+      "bytes": 677848106,
+      "sha256": "f4b68552fa6463ca0570c01c80a3205383e8e4f8aac861812fa5c5db5065833b",
+      "step": 25000,
+      "contents": "full student/teacher/optimizers/AMP/RNG state"
+    }
+  },
+  "best_original_path": "/root/autodl-tmp/dest_mrsa_20261027/run/model_best_observed.pth",
+  "archive_storage": "best archive path and original run path are hard links to the same verified bytes; this is not a separate disk backup",
+  "best_selection": "highest pooled validation mAP@0.5 among initial 0K and 25 adapted checkpoints (1K..25K)",
+  "evaluated_model": "full EMA teacher detector",
+  "checkpoint_contents": "student, teacher, global_D, configuration and provenance; inference uses teacher",
+  "best_evaluation": {
+    "step": 22000,
+    "scope": "current",
+    "images": 1500,
+    "mixed_AP50": 62.00926357667168,
+    "mixed_AP75": 38.41584997072124,
+    "density_AP50": {
+      "0.005": 64.36828632527971,
+      "0.01": 63.13141828868283,
+      "0.02": 58.90892914384197
+    },
+    "recorded_at": 1793159192.7384195
+  },
+  "final_evaluation": {
+    "step": 25000,
+    "scope": "current",
+    "images": 1500,
+    "mixed_AP50": 61.69424555416755,
+    "mixed_AP75": 37.68122489090453,
+    "density_AP50": {
+      "0.005": 65.01088331014797,
+      "0.01": 63.31273939849798,
+      "0.02": 57.72278677271784
+    },
+    "recorded_at": 1793169242.6668727
+  },
+  "evaluation_protocol": {
+    "dataset": "Foggy Cityscapes val",
+    "images": 1500,
+    "scenes": 500,
+    "fog_densities": [
+      0.005,
+      0.01,
+      0.02
+    ],
+    "images_per_density": 500,
+    "classes": 8,
+    "evaluator": "repository_native_VOC2007_11point",
+    "units": "percent",
+    "main_metric": "pooled mAP@0.5 (mixed AP50), not COCO AP and not dense-fog-only AP",
+    "pooling": "rank all density-specific image predictions together; not mean of per-density APs",
+    "selection_note": "best observed validation checkpoint, not independent test-set performance"
+  },
+  "training_code_bundle": {
+    "path": "/root/autodl-tmp/checkpoints/dest_mrsa_c2f_ap6201_22k_20261028/training_code_e089bc7.bundle",
+    "bytes": 5160159,
+    "sha256": "ddfc0dcaf37fd515348d2e3ffd2c2436826a2656256246ddfb639b16c871e126"
+  },
+  "verification": {
+    "best_metadata_matches_history": true,
+    "best_ema_updates": 22000,
+    "finite_saved_tensors": 1026,
+    "complete_evaluation_records": 26,
+    "evaluation_record_hashes_checked": true,
+    "fixed_source_hashes_checked": true
+  }
+}

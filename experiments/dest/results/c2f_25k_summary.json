@@ -1,0 +1,86 @@
+{
+  "experiment": "dest_mrsa_relaxed_spatial_c2f_20261027",
+  "method": "DeST (MRSA + relaxed spatial supervision)",
+  "training_code_commit": "e089bc781e255aa47ef2b44db412de18e8a7815e",
+  "completed_date": "2026-10-28",
+  "host": "011",
+  "gpu": "Tesla V100-PCIE-32GB",
+  "runtime": {
+    "python": "3.8.20",
+    "torch": "1.9.0+cu111",
+    "cuda": "11.1"
+  },
+  "state": "complete",
+  "successful_updates": 25000,
+  "ema_updates": 25000,
+  "skipped_updates": 0,
+  "amp_retry_attempts": 8,
+  "duration_seconds": 80816.69411921501,
+  "mean_update_seconds": 2.6398725998135077,
+  "peak_allocated_GiB": 9.267978191375732,
+  "initial": {
+    "step": 0,
+    "scope": "initial",
+    "images": 1500,
+    "mixed_AP50": 51.20454371896934,
+    "mixed_AP75": 30.25603393180698,
+    "density_AP50": {
+      "0.005": 56.63374108277203,
+      "0.01": 52.68857395832286,
+      "0.02": 44.59054199390741
+    },
+    "recorded_at": 1793089020.2309973
+  },
+  "best": {
+    "step": 22000,
+    "scope": "current",
+    "images": 1500,
+    "mixed_AP50": 62.00926357667168,
+    "mixed_AP75": 38.41584997072124,
+    "density_AP50": {
+      "0.005": 64.36828632527971,
+      "0.01": 63.13141828868283,
+      "0.02": 58.90892914384197
+    },
+    "recorded_at": 1793159192.7384195
+  },
+  "final": {
+    "step": 25000,
+    "scope": "current",
+    "images": 1500,
+    "mixed_AP50": 61.69424555416755,
+    "mixed_AP75": 37.68122489090453,
+    "density_AP50": {
+      "0.005": 65.01088331014797,
+      "0.01": 63.31273939849798,
+      "0.02": 57.72278677271784
+    },
+    "recorded_at": 1793169242.6668727
+  },
+  "selection": "highest pooled validation mAP@0.5 among initial 0K and 25 adapted checkpoints (1K..25K)",
+  "evaluation_protocol": {
+    "dataset": "Foggy Cityscapes val",
+    "images": 1500,
+    "scenes": 500,
+    "fog_densities": [
+      0.005,
+      0.01,
+      0.02
+    ],
+    "images_per_density": 500,
+    "classes": 8,
+    "evaluator": "repository_native_VOC2007_11point",
+    "units": "percent",
+    "main_metric": "pooled mAP@0.5 (mixed AP50), not COCO AP and not dense-fog-only AP",
+    "pooling": "rank all density-specific image predictions together; not mean of per-density APs",
+    "selection_note": "best observed validation checkpoint, not independent test-set performance"
+  },
+  "historical_reference": {
+    "commit": "f9d98fc76c95e2b8e6083030169663626e11babe",
+    "mixed_AP50": 58.356486657395756,
+    "evaluated_model": "student with EMA semantic maps",
+    "comparability": "different method and inference path; not a controlled module ablation"
+  },
+  "configuration": "c2f_resolved_config.json",
+  "weight_manifest": "c2f_weight_manifest.json"
+}

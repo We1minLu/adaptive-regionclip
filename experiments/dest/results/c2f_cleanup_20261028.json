@@ -1,0 +1,156 @@
+{
+  "date": "2026-10-28",
+  "scope": "completed DeST run only",
+  "applied": true,
+  "files": [
+    {
+      "path": "/root/autodl-tmp/dest_mrsa_20261027/run/checkpoint_previous.pth",
+      "bytes": 677848106,
+      "sha256": "c60c9cbf858bb8c533af40a5b761cf03aba48d7b9d3e918ff4475614fd527251",
+      "reason": "superseded 24K full-state checkpoint; 25K full state and best/final models retained"
+    },
+    {
+      "path": "/root/autodl-tmp/dest_mrsa_20261027/run/eval_step_001000/predictions.jsonl",
+      "bytes": 14435660,
+      "sha256": "80ef344787870ba9094f4c49b8851c9b98d0a16f5cffd3547bce20dbfac1cf89",
+      "reason": "intermediate prediction details; full metrics/status/history retained"
+    },
+    {
+      "path": "/root/autodl-tmp/dest_mrsa_20261027/run/eval_step_002000/predictions.jsonl",
+      "bytes": 14480122,
+      "sha256": "f65648bafe80a0bf571228a8c5579ba440cf895b45538439a268a53b88f70f50",
+      "reason": "intermediate prediction details; full metrics/status/history retained"
+    },
+    {
+      "path": "/root/autodl-tmp/dest_mrsa_20261027/run/eval_step_003000/predictions.jsonl",
+      "bytes": 14475021,
+      "sha256": "c3bb0f2f2812f5052a81d264677b9409d038c7d703186b5d79c6b991a6e01da1",
+      "reason": "intermediate prediction details; full metrics/status/history retained"
+    },
+    {
+      "path": "/root/autodl-tmp/dest_mrsa_20261027/run/eval_step_004000/predictions.jsonl",
+      "bytes": 14470797,
+      "sha256": "a2d8fcc940d1eb76e1af856e005c6a3d03adc45812fef3a9cf7d0204e7d18cd2",
+      "reason": "intermediate prediction details; full metrics/status/history retained"
+    },
+    {
+      "path": "/root/autodl-tmp/dest_mrsa_20261027/run/eval_step_005000/predictions.jsonl",
+      "bytes": 14466490,
+      "sha256": "277a6c9e05245dc04b27d1eadbc741239dfb893ee6785add7cbce1ca964f26ab",
+      "reason": "intermediate prediction details; full metrics/status/history retained"
+    },
+    {
+      "path": "/root/autodl-tmp/dest_mrsa_20261027/run/eval_step_006000/predictions.jsonl",
+      "bytes": 14463781,
+      "sha256": "69e5b8344e872d006b24d1c33b47550779cb62f03814d3a0e8d8a0dcc9e6d45b",
+      "reason": "intermediate prediction details; full metrics/status/history retained"
+    },
+    {
+      "path": "/root/autodl-tmp/dest_mrsa_20261027/run/eval_step_007000/predictions.jsonl",
+      "bytes": 14462315,
+      "sha256": "a050efd05e2ef002054915ecd002c7453c4530f0a3f7b2f0f3476822dfdd4d20",
+      "reason": "intermediate prediction details; full metrics/status/history retained"
+    },
+    {
+      "path": "/root/autodl-tmp/dest_mrsa_20261027/run/eval_step_008000/predictions.jsonl",
+      "bytes": 14463361,
+      "sha256": "1e8fe83a82aca6c37e2686ad8b01e5bb167cc7b927f0259ff23ab225e4e06f20",
+      "reason": "intermediate prediction details; full metrics/status/history retained"
+    },
+    {
+      "path": "/root/autodl-tmp/dest_mrsa_20261027/run/eval_step_009000/predictions.jsonl",
+      "bytes": 14463183,
+      "sha256": "61d82157098573413975669634984b0da8baa0a30668b061502500829af0290a",
+      "reason": "intermediate prediction details; full metrics/status/history retained"
+    },
+    {
+      "path": "/root/autodl-tmp/dest_mrsa_20261027/run/eval_step_010000/predictions.jsonl",
+      "bytes": 14462443,
+      "sha256": "36a285a60a192b8fcb71dc769d43086cf6d3a91196b083246c629383551a6f88",
+      "reason": "intermediate prediction details; full metrics/status/history retained"
+    },
+    {
+      "path": "/root/autodl-tmp/dest_mrsa_20261027/run/eval_step_011000/predictions.jsonl",
+      "bytes": 14461406,
+      "sha256": "07bfd5e62e1c1e874c06dfbbc33a172bf8a44ebcddad59b1f159b825442f4c11",
+      "reason": "intermediate prediction details; full metrics/status/history retained"
+    },
+    {
+      "path": "/root/autodl-tmp/dest_mrsa_20261027/run/eval_step_012000/predictions.jsonl",
+      "bytes": 14460197,
+      "sha256": "fe10622fa02a05f77e70f65bb10a57ccf71140174f2ff6737c225951d8f6ffe1",
+      "reason": "intermediate prediction details; full metrics/status/history retained"
+    },
+    {
+      "path": "/root/autodl-tmp/dest_mrsa_20261027/run/eval_step_013000/predictions.jsonl",
+      "bytes": 14461079,
+      "sha256": "e73c7243f824271a72dbba4d5734a8f732a036f321d2d9d4fb59b4bcc31ad916",
+      "reason": "intermediate prediction details; full metrics/status/history retained"
+    },
+    {
+      "path": "/root/autodl-tmp/dest_mrsa_20261027/run/eval_step_014000/predictions.jsonl",
+      "bytes": 14460078,
+      "sha256": "b2cd3d2a96f3a9b3fb9c1297925473c873f23c5bd1c4929bb6df16eba130bcfa",
+      "reason": "intermediate prediction details; full metrics/status/history retained"
+    },
+    {
+      "path": "/root/autodl-tmp/dest_mrsa_20261027/run/eval_step_015000/predictions.jsonl",
+      "bytes": 14460500,
+      "sha256": "9e41639f0a612ab0eb4885692803c9efd004b911b7305b0d7dedc7d8003b9941",
+      "reason": "intermediate prediction details; full metrics/status/history retained"
+    },
+    {
+      "path": "/root/autodl-tmp/dest_mrsa_20261027/run/eval_step_016000/predictions.jsonl",
+      "bytes": 14459028,
+      "sha256": "040e2740d415e31dcaf7a39f549cc535a718a2cfab5665cac8ba563c4a807ac9",
+      "reason": "intermediate prediction details; full metrics/status/history retained"
+    },
+    {
+      "path": "/root/autodl-tmp/dest_mrsa_20261027/run/eval_step_017000/predictions.jsonl",
+      "bytes": 14459955,
+      "sha256": "38426bee6f86a06d87dbef3d1a16e241e7ed9d7fe45b326dd35ff0d8d024e2a5",
+      "reason": "intermediate prediction details; full metrics/status/history retained"
+    },
+    {
+      "path": "/root/autodl-tmp/dest_mrsa_20261027/run/eval_step_018000/predictions.jsonl",
+      "bytes": 14459901,
+      "sha256": "596578f0d7e690e9713cddb828766fc945bd6cb754527580aad3c060b5a7e781",
+      "reason": "intermediate prediction details; full metrics/status/history retained"
+    },
+    {
+      "path": "/root/autodl-tmp/dest_mrsa_20261027/run/eval_step_019000/predictions.jsonl",
+      "bytes": 14460289,
+      "sha256": "875aec319581d1a75718ff2d562c9df56b8da1a0beeb65408dbb34384bc55c95",
+      "reason": "intermediate prediction details; full metrics/status/history retained"
+    },
+    {
+      "path": "/root/autodl-tmp/dest_mrsa_20261027/run/eval_step_020000/predictions.jsonl",
+      "bytes": 14463354,
+      "sha256": "a402c0d664a9cc555fdf86d7a36e10bea26c2ae441a53d6afc24c720b3bb11ae",
+      "reason": "intermediate prediction details; full metrics/status/history retained"
+    },
+    {
+      "path": "/root/autodl-tmp/dest_mrsa_20261027/run/eval_step_021000/predictions.jsonl",
+      "bytes": 14463153,
+      "sha256": "f4b4dfe66655a4840e4a2e4e1b9f60017e4b0d0dc55673f385496ce79303bad2",
+      "reason": "intermediate prediction details; full metrics/status/history retained"
+    },
+    {
+      "path": "/root/autodl-tmp/dest_mrsa_20261027/run/eval_step_023000/predictions.jsonl",
+      "bytes": 14464179,
+      "sha256": "bc233b556df7ac02b01c69c2f3f0ee697311c9cc6ec02e7238360cf5a2b4722d",
+      "reason": "intermediate prediction details; full metrics/status/history retained"
+    },
+    {
+      "path": "/root/autodl-tmp/dest_mrsa_20261027/run/eval_step_024000/predictions.jsonl",
+      "bytes": 14462531,
+      "sha256": "2b62e9f64c4fa8b3f7e78c08d26133ebc7af66d7e7e955c8545c1edaa6094fa1",
+      "reason": "intermediate prediction details; full metrics/status/history retained"
+    }
+  ],
+  "bytes": 1010486929,
+  "retained": "best model, final model, final full state, all logs/metrics/history/configs, initial/best/final predictions, source assets and datasets",
+  "prior_user_keep_decision": "all six old asset groups from 2026-10-27 remain untouched",
+  "free_bytes_before": 6556241920,
+  "free_bytes_after": 7566786560
+}

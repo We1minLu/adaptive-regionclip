@@ -1,0 +1,42 @@
+{
+  "student.backbone.layer2": {
+    "parameters_with_grad": 13,
+    "norm": 3.2767317860916583
+  },
+  "student.backbone.layer3": {
+    "parameters_with_grad": 19,
+    "norm": 4.580935659926283
+  },
+  "student.backbone.layer4": {
+    "parameters_with_grad": 10,
+    "norm": 3.6487003781810063
+  },
+  "student.backbone.attnpool": {
+    "parameters_with_grad": 9,
+    "norm": 2.5691665224261695
+  },
+  "student.offline_backbone.res3": {
+    "parameters_with_grad": 13,
+    "norm": 3.51572889429428
+  },
+  "student.offline_backbone.res4": {
+    "parameters_with_grad": 19,
+    "norm": 4.933467811646212
+  },
+  "student.offline_proposal_generator.rpn_head": {
+    "parameters_with_grad": 6,
+    "norm": 3.2256511964566448
+  },
+  "student.roi_heads.box_predictor": {
+    "parameters_with_grad": 2,
+    "norm": 1.1225435010637677
+  },
+  "global_D.heads.res3": {
+    "parameters_with_grad": 4,
+    "norm": 0.003496896550918262
+  },
+  "global_D.heads.res4": {
+    "parameters_with_grad": 4,
+    "norm": 0.003576264274356753
+  }
+}

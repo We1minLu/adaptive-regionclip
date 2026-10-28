@@ -1,0 +1,8 @@
+{
+  "passed": true,
+  "native_scores18_exact": true,
+  "native_box_deltas_exact": true,
+  "active_source_tensors_exact": true,
+  "rows": 7,
+  "unused_prompt_models_loaded": false
+}
